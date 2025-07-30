@@ -236,16 +236,18 @@
                 return getWordsFromBank();
             }
             
-            const apiUrl = `https://random-words-api.vercel.app/word`;
+            // --- NEW API LOGIC ---
+            // Using the robust Datamuse API. It is less likely to be blocked.
+            // We will pick a random word from our internal list to act as a "seed"
+            // for the API, ensuring we get a different set of words each time.
+            const seedWord = INTERNAL_WORD_BANK[Math.floor(Math.random() * INTERNAL_WORD_BANK.length)];
+            const apiUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=100`;
+
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
                 
-                const response = await fetch(`${apiUrl}?number=${wordCount + 10}`, {
-                    signal: controller.signal,
-                    mode: 'cors',
-                    cache: 'no-cache'
-                });
+                const response = await fetch(apiUrl, { signal: controller.signal });
                 clearTimeout(timeoutId);
 
                 if (!response.ok) {
@@ -253,14 +255,17 @@
                 }
                 
                 const wordsData = await response.json();
-                const words = wordsData.map(item => item.word.toLowerCase());
-                const filteredWords = words.filter(word => word.length > 3 && word.length <= 15);
+                // Extract just the word string from the response objects
+                const words = wordsData.map(item => item.word);
+
+                // Filter the results to get suitable words for the puzzle
+                const filteredWords = words.filter(word => word.length > 3 && word.length <= 15 && !word.includes(' '));
                 
                 if (filteredWords.length < wordCount) {
-                    throw new Error("API gave too few suitable words");
+                    throw new Error("API did not provide enough suitable words, using fallback.");
                 }
                 
-                statusElement.textContent = 'Source: Live API (Success)';
+                statusElement.textContent = 'Source: Live API (Datamuse)';
                 return filteredWords.slice(0, wordCount);
 
             } catch (error) {
@@ -283,7 +288,7 @@
             revealBtn.disabled = true;
         }
 
-        async function generatePuzzle() {
+        function generatePuzzle() {
             generateBtn.disabled = true;
             revealBtn.disabled = true;
             loaderText.textContent = 'Fetching words...';
@@ -293,78 +298,82 @@
             gridElement.innerHTML = '';
             placedWordDetails = [];
 
-            const words = await getWordList();
-            const sourceMessage = statusElement.textContent;
+            // A small timeout allows the UI to update to the "loading" state
+            // before the browser gets busy with the puzzle generation.
+            setTimeout(async () => {
+                const words = await getWordList();
+                const sourceMessage = statusElement.textContent;
 
-            loaderText.textContent = 'Building puzzle...';
-            const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
-            const directions = [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 } ];
+                loaderText.textContent = 'Building puzzle...';
+                const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
+                const directions = [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 } ];
 
-            for (const word of words) {
-                const upperWord = word.toUpperCase();
-                let placed = false;
-                let attempts = 0;
-                while (!placed && attempts < 150) {
-                    const dir = directions[Math.floor(Math.random() * directions.length)];
-                    const startX = Math.floor(Math.random() * gridSize);
-                    const startY = Math.floor(Math.random() * gridSize);
-                    const endX = startX + (upperWord.length - 1) * dir.x;
-                    const endY = startY + (upperWord.length - 1) * dir.y;
+                for (const word of words) {
+                    const upperWord = word.toUpperCase();
+                    let placed = false;
+                    let attempts = 0;
+                    while (!placed && attempts < 150) {
+                        const dir = directions[Math.floor(Math.random() * directions.length)];
+                        const startX = Math.floor(Math.random() * gridSize);
+                        const startY = Math.floor(Math.random() * gridSize);
+                        const endX = startX + (upperWord.length - 1) * dir.x;
+                        const endY = startY + (upperWord.length - 1) * dir.y;
 
-                    if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
-                        let canPlace = true;
-                        for (let i = 0; i < upperWord.length; i++) {
-                            const cX = startX + i * dir.x;
-                            const cY = startY + i * dir.y;
-                            if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) {
-                                canPlace = false;
-                                break;
-                            }
-                        }
-                        if (canPlace) {
-                            const locations = [];
+                        if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
+                            let canPlace = true;
                             for (let i = 0; i < upperWord.length; i++) {
                                 const cX = startX + i * dir.x;
                                 const cY = startY + i * dir.y;
-                                grid[cY][cX] = upperWord[i];
-                                locations.push({ x: cX, y: cY });
+                                if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) {
+                                    canPlace = false;
+                                    break;
+                                }
                             }
-                            placedWordDetails.push({ word: upperWord, locations: locations });
-                            placed = true;
+                            if (canPlace) {
+                                const locations = [];
+                                for (let i = 0; i < upperWord.length; i++) {
+                                    const cX = startX + i * dir.x;
+                                    const cY = startY + i * dir.y;
+                                    grid[cY][cX] = upperWord[i];
+                                    locations.push({ x: cX, y: cY });
+                                }
+                                placedWordDetails.push({ word: upperWord, locations: locations });
+                                placed = true;
+                            }
                         }
+                        attempts++;
                     }
-                    attempts++;
                 }
-            }
 
-            for (let y = 0; y < gridSize; y++) {
-                for (let x = 0; x < gridSize; x++) {
-                    if (grid[y][x] === '') {
-                        grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                for (let y = 0; y < gridSize; y++) {
+                    for (let x = 0; x < gridSize; x++) {
+                        if (grid[y][x] === '') {
+                            grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                        }
+                        const cell = document.createElement('div');
+                        cell.textContent = grid[y][x];
+                        gridElement.appendChild(cell);
                     }
-                    const cell = document.createElement('div');
-                    cell.textContent = grid[y][x];
-                    gridElement.appendChild(cell);
                 }
-            }
-            
-            placedWordDetails.map(p => p.word).sort().forEach(word => {
-                const li = document.createElement('li');
-                li.textContent = word;
-                wordListElement.appendChild(li);
-            });
-            
-            let finalStatus = sourceMessage;
-            if (placedWordDetails.length < words.length && placedWordDetails.length > 0) {
-                finalStatus += ` (Placed ${placedWordDetails.length} of ${words.length} words)`;
-            }
-            statusElement.textContent = finalStatus;
+                
+                placedWordDetails.map(p => p.word).sort().forEach(word => {
+                    const li = document.createElement('li');
+                    li.textContent = word;
+                    wordListElement.appendChild(li);
+                });
+                
+                let finalStatus = sourceMessage;
+                if (placedWordDetails.length < words.length && placedWordDetails.length > 0) {
+                    finalStatus += ` (Note: Placed ${placedWordDetails.length} of ${words.length} words)`;
+                }
+                statusElement.textContent = finalStatus;
 
-            generateBtn.disabled = false;
-            if (placedWordDetails.length > 0) {
-                revealBtn.disabled = false;
-            }
-            loader.classList.add('hidden');
+                generateBtn.disabled = false;
+                if (placedWordDetails.length > 0) {
+                    revealBtn.disabled = false;
+                }
+                loader.classList.add('hidden');
+            }, 50);
         }
 
         window.addEventListener('load', generatePuzzle);
