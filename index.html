@@ -96,7 +96,7 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* --- Word List (New Layout) --- */
+        /* --- Word List --- */
         #word-list-container {
             width: 100%;
             max-width: 600px; /* Aligns roughly with grid width */
@@ -111,7 +111,7 @@
             list-style-type: none; 
             padding: 0; 
             margin: 0; 
-            column-count: 3; /* The magic for 3 columns */
+            column-count: 3;
             column-gap: 20px;
         }
         #word-list-container li { 
@@ -119,7 +119,7 @@
             text-transform: uppercase;
             font-size: 0.95em;
             color: #495057;
-            break-inside: avoid-column; /* Prevents items from breaking across columns */
+            break-inside: avoid-column;
         }
 
         /* --- Controls & Status --- */
@@ -195,15 +195,16 @@
             </div>
         </div>
 
-        <div class="controls">
-            <button id="generate-btn" onclick="generatePuzzle()">Generate New Puzzle</button>
-            <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
-        </div>
-
-        <!-- Word List is now here -->
+        <!-- Word List is now before the buttons -->
         <div id="word-list-container">
             <h3>Words to Find:</h3>
             <ul id="words"></ul>
+        </div>
+        
+        <!-- Controls are now after the word list -->
+        <div class="controls">
+            <button id="generate-btn" onclick="generatePuzzle()">Generate New Puzzle</button>
+            <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
         </div>
         
         <div class="options-container">
@@ -218,7 +219,7 @@
         </div>
 
         <div id="version-info">
-            v1.3
+            v1.4
         </div>
     </div>
 
@@ -229,7 +230,7 @@
         let placedWordDetails = [];
 
         const gridElement = document.getElementById('grid');
-        const wordListElement = document.getElementById('words'); // This still points to the UL
+        const wordListElement = document.getElementById('words');
         const revealBtn = document.getElementById('reveal-btn');
         const generateBtn = document.getElementById('generate-btn');
         const statusElement = document.getElementById('source-status');
@@ -366,10 +367,9 @@
                     }
                 }
                 
-                // This loop now adds the number to each word in the list
                 placedWordDetails.map(p => p.word).sort().forEach((word, index) => {
                     const li = document.createElement('li');
-                    li.textContent = `${index + 1}) ${word}`; // e.g., "1) AMAZING"
+                    li.textContent = `${index + 1}) ${word}`;
                     wordListElement.appendChild(li);
                 });
                 
