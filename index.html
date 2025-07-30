@@ -28,14 +28,11 @@
             color: #343a40; 
         }
 
-        /* --- Puzzle Area (Grid & Word List) --- */
+        /* --- Puzzle Area --- */
         #puzzle-container { 
             display: flex; 
-            flex-wrap: wrap; 
-            gap: 40px; 
             margin-top: 20px; 
             justify-content: center; 
-            align-items: flex-start;
         }
         #grid-wrapper {
             position: relative; /* For loader positioning */
@@ -99,24 +96,30 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* --- Word List --- */
-        #word-list {
-            width: 200px;
+        /* --- Word List (New Layout) --- */
+        #word-list-container {
+            width: 100%;
+            max-width: 600px; /* Aligns roughly with grid width */
+            margin: 20px auto 0 auto; /* Center it */
         }
-        #word-list h3 { 
+        #word-list-container h3 { 
+            text-align: center;
             margin-top: 0; 
             color: #495057; 
         }
-        #word-list ul { 
+        #word-list-container ul { 
             list-style-type: none; 
             padding: 0; 
             margin: 0; 
+            column-count: 3; /* The magic for 3 columns */
+            column-gap: 20px;
         }
-        #word-list li { 
+        #word-list-container li { 
             padding: 4px 0;
             text-transform: uppercase;
             font-size: 0.95em;
             color: #495057;
+            break-inside: avoid-column; /* Prevents items from breaking across columns */
         }
 
         /* --- Controls & Status --- */
@@ -190,15 +193,17 @@
                     <span id="loader-text"></span>
                 </div>
             </div>
-            <div id="word-list">
-                <h3>Words to Find:</h3>
-                <ul id="words"></ul>
-            </div>
         </div>
 
         <div class="controls">
             <button id="generate-btn" onclick="generatePuzzle()">Generate New Puzzle</button>
             <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
+        </div>
+
+        <!-- Word List is now here -->
+        <div id="word-list-container">
+            <h3>Words to Find:</h3>
+            <ul id="words"></ul>
         </div>
         
         <div class="options-container">
@@ -213,7 +218,7 @@
         </div>
 
         <div id="version-info">
-            v1.2
+            v1.3
         </div>
     </div>
 
@@ -224,7 +229,7 @@
         let placedWordDetails = [];
 
         const gridElement = document.getElementById('grid');
-        const wordListElement = document.getElementById('words');
+        const wordListElement = document.getElementById('words'); // This still points to the UL
         const revealBtn = document.getElementById('reveal-btn');
         const generateBtn = document.getElementById('generate-btn');
         const statusElement = document.getElementById('source-status');
@@ -247,7 +252,6 @@
             }
             
             const seedWord = INTERNAL_WORD_BANK[Math.floor(Math.random() * INTERNAL_WORD_BANK.length)];
-            // Fetching a larger pool of words to ensure enough valid ones are found.
             const apiUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150`;
 
             try {
@@ -264,9 +268,8 @@
                 const wordsData = await response.json();
                 const words = wordsData.map(item => item.word);
 
-                // Stricter filtering: rejects words with spaces, hyphens, or apostrophes.
                 const filteredWords = words.filter(word => {
-                    const hasInvalidChars = /[ '-]/.test(word); // Regex to find space, ' or -
+                    const hasInvalidChars = /[ '-]/.test(word);
                     return word.length > 3 && word.length <= 15 && !hasInvalidChars;
                 });
                 
@@ -275,7 +278,6 @@
                 }
                 
                 statusElement.textContent = 'Source: Live API (Datamuse)';
-                // Take the first 15 valid words from the filtered list.
                 return filteredWords.slice(0, wordCount);
 
             } catch (error) {
@@ -364,9 +366,10 @@
                     }
                 }
                 
-                placedWordDetails.map(p => p.word).sort().forEach(word => {
+                // This loop now adds the number to each word in the list
+                placedWordDetails.map(p => p.word).sort().forEach((word, index) => {
                     const li = document.createElement('li');
-                    li.textContent = word;
+                    li.textContent = `${index + 1}) ${word}`; // e.g., "1) AMAZING"
                     wordListElement.appendChild(li);
                 });
                 
