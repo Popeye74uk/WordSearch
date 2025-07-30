@@ -5,34 +5,177 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robust Word Search Generator</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f8f9fa; padding: 20px; margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
-        .container { width: 100%; max-width: 900px; margin: 0 auto; }
-        h1 { text-align: center; color: #343a40; }
-        #puzzle-container { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 20px; justify-content: center; align-items: flex-start; }
-        #grid-wrapper { position: relative; }
-        #grid { display: grid; grid-template-columns: repeat(20, 28px); grid-template-rows: repeat(20, 28px); gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; }
-        #grid div { width: 28px; height: 28px; text-align: center; line-height: 28px; background-color: #fff; text-transform: uppercase; transition: background-color 0.3s ease, transform 0.2s; user-select: none; }
-        #grid div.revealed { background-color: #ffc107; color: #000; transform: scale(1.1); }
-        .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.9); display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 10px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; transition: opacity 0.3s ease; }
-        .loader.hidden { opacity: 0; pointer-events: none; }
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #word-list { width: 200px; }
-        #word-list h3 { margin-top: 0; color: #495057; }
-        #word-list ul { list-style-type: none; padding: 0; margin: 0; }
-        #word-list li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; }
-        .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
-        button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-        button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        /* --- General Body & Layout --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 16px; 
+            color: #333; 
+            background-color: #f8f9fa;
+            padding: 20px; 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container { 
+            width: 100%; 
+            max-width: 900px; 
+            margin: 0 auto;
+        }
+        h1 { 
+            text-align: center; 
+            color: #343a40; 
+        }
+
+        /* --- Puzzle Area (Grid & Word List) --- */
+        #puzzle-container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 40px; 
+            margin-top: 20px; 
+            justify-content: center; 
+            align-items: flex-start;
+        }
+        #grid-wrapper {
+            position: relative; /* For loader positioning */
+        }
+        #grid {
+            display: grid; 
+            grid-template-columns: repeat(20, 28px); 
+            grid-template-rows: repeat(20, 28px);
+            gap: 1px; 
+            background-color: #adb5bd; 
+            border: 1px solid #adb5bd;
+            font-family: "Courier New", Courier, monospace; 
+            font-weight: bold;
+        }
+        #grid div {
+            width: 28px; 
+            height: 28px; 
+            text-align: center; 
+            line-height: 28px; 
+            background-color: #fff;
+            text-transform: uppercase; 
+            transition: background-color 0.3s ease, transform 0.2s;
+            user-select: none;
+        }
+        #grid div.revealed { 
+            background-color: #ffc107; 
+            color: #000; 
+            transform: scale(1.1); 
+        }
+        
+        /* --- Loading Spinner --- */
+        .loader {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+            font-size: 1.1em;
+            color: #495057;
+            border-radius: 4px;
+            transition: opacity 0.3s ease;
+        }
+        .loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- Word List --- */
+        #word-list {
+            width: 200px;
+        }
+        #word-list h3 { 
+            margin-top: 0; 
+            color: #495057; 
+        }
+        #word-list ul { 
+            list-style-type: none; 
+            padding: 0; 
+            margin: 0; 
+        }
+        #word-list li { 
+            padding: 4px 0;
+            text-transform: uppercase;
+            font-size: 0.95em;
+            color: #495057;
+        }
+
+        /* --- Controls & Status --- */
+        .controls { 
+            margin-top: 25px; 
+            display: flex; 
+            gap: 15px; 
+            justify-content: center; 
+            flex-wrap: wrap; 
+        }
+        button {
+            padding: 12px 20px; 
+            font-size: 1em; 
+            font-weight: bold; 
+            cursor: pointer; 
+            color: white;
+            border: none; 
+            border-radius: 5px; 
+            transition: all 0.2s; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15); 
+        }
+        button:disabled { 
+            background-color: #6c757d; 
+            cursor: not-allowed; 
+            opacity: 0.7; 
+        }
         #generate-btn { background-color: #007bff; }
         #generate-btn:hover:not(:disabled) { background-color: #0056b3; }
         #reveal-btn { background-color: #28a745; }
         #reveal-btn:hover:not(:disabled) { background-color: #218838; }
-        .options-container { text-align: center; margin-top: 20px; font-size: 0.9em; color: #6c757d; }
-        .options-container label { cursor: pointer; user-select: none; }
-        #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
-        #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
+
+        .options-container { 
+            text-align: center; 
+            margin-top: 20px; 
+            font-size: 0.9em; 
+            color: #6c757d; 
+        }
+        .options-container label { 
+            cursor: pointer; 
+            user-select: none; 
+        }
+        #status-container { 
+            text-align: center; 
+            margin-top: 15px;
+            font-style: italic;
+            min-height: 20px;
+            color: #6c757d;
+        }
+        /* --- Style for the new version number --- */
+        #version-info {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #adb5bd;
+        }
     </style>
 </head>
 <body>
@@ -70,8 +213,9 @@
             <p id="source-status"></p>
         </div>
 
+        <!-- Version number added here -->
         <div id="version-info">
-            v2.0
+            v1.0
         </div>
     </div>
 
@@ -96,57 +240,61 @@
             return shuffled.slice(0, wordCount);
         }
 
-        /**
-         * Fetches words from the Datamuse API using the JSONP technique,
-         * which is more resilient to network filters than standard fetch.
-         */
-        function getWordListViaApi() {
-            return new Promise((resolve) => {
-                const callbackName = 'jsonpCallback' + Math.floor(Math.random() * 100000);
-                let script = document.createElement('script');
-                
-                const timeout = setTimeout(() => {
-                    cleanup();
-                    statusElement.textContent = 'Source: Internal Fallback (Error: API Timeout)';
-                    resolve(getWordsFromBank());
-                }, 5000); // 5-second timeout
+        async function getWordList() {
+            const useApi = document.getElementById('use-api-checkbox').checked;
 
-                function cleanup() {
-                    if (script.parentNode) {
-                        script.parentNode.removeChild(script);
-                    }
-                    delete window[callbackName];
+            if (!useApi) {
+                statusElement.textContent = 'Source: Internal Word Bank';
+                return getWordsFromBank();
+            }
+            
+            const seedWord = INTERNAL_WORD_BANK[Math.floor(Math.random() * INTERNAL_WORD_BANK.length)];
+            const apiUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=100`;
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch(apiUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
                 }
-
-                window[callbackName] = (data) => {
-                    clearTimeout(timeout);
-                    cleanup();
-                    const words = data.map(item => item.word);
-                    const filteredWords = words.filter(word => word.length > 3 && word.length <= 15 && !word.includes(' '));
-                    
-                    if (filteredWords.length < wordCount) {
-                        statusElement.textContent = 'Source: Internal Fallback (API gave few words)';
-                        resolve(getWordsFromBank());
-                    } else {
-                        statusElement.textContent = 'Source: Live API (Datamuse/JSONP)';
-                        resolve(filteredWords.slice(0, wordCount));
-                    }
-                };
                 
-                script.onerror = () => {
-                    clearTimeout(timeout);
-                    cleanup();
-                    statusElement.textContent = 'Source: Internal Fallback (Error: Script Blocked)';
-                    resolve(getWordsFromBank());
-                };
+                const wordsData = await response.json();
+                const words = wordsData.map(item => item.word);
 
-                const seedWord = INTERNAL_WORD_BANK[Math.floor(Math.random() * INTERNAL_WORD_BANK.length)];
-                script.src = `https://api.datamuse.com/words?ml=${seedWord}&max=100&callback=${callbackName}`;
-                document.head.appendChild(script);
-            });
+                const filteredWords = words.filter(word => word.length > 3 && word.length <= 15 && !word.includes(' '));
+                
+                if (filteredWords.length < wordCount) {
+                    throw new Error("API did not provide enough suitable words, using fallback.");
+                }
+                
+                statusElement.textContent = 'Source: Live API (Datamuse)';
+                return filteredWords.slice(0, wordCount);
+
+            } catch (error) {
+                console.error("API Fetch Error:", error);
+                statusElement.textContent = `Source: Internal Fallback (Error: ${error.name})`;
+                return getWordsFromBank();
+            }
         }
 
-        async function generatePuzzle() {
+        function revealWords() {
+            const gridCells = document.querySelectorAll('#grid div');
+            if (placedWordDetails.length === 0 || gridCells.length === 0) return;
+            
+            placedWordDetails.forEach(detail => {
+                detail.locations.forEach(loc => {
+                    const index = loc.y * gridSize + loc.x;
+                    if (gridCells[index]) gridCells[index].classList.add('revealed');
+                });
+            });
+            revealBtn.disabled = true;
+        }
+
+        function generatePuzzle() {
             generateBtn.disabled = true;
             revealBtn.disabled = true;
             loaderText.textContent = 'Fetching words...';
@@ -155,21 +303,12 @@
             statusElement.textContent = '';
             gridElement.innerHTML = '';
             placedWordDetails = [];
-            
-            let words;
-            const useApi = document.getElementById('use-api-checkbox').checked;
 
-            if (useApi) {
-                words = await getWordListViaApi();
-            } else {
-                statusElement.textContent = 'Source: Internal Word Bank';
-                words = getWordsFromBank();
-            }
-            
-            const sourceMessage = statusElement.textContent;
-            loaderText.textContent = 'Building puzzle...';
+            setTimeout(async () => {
+                const words = await getWordList();
+                const sourceMessage = statusElement.textContent;
 
-            setTimeout(() => {
+                loaderText.textContent = 'Building puzzle...';
                 const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
                 const directions = [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 } ];
 
@@ -187,13 +326,18 @@
                         if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
                             let canPlace = true;
                             for (let i = 0; i < upperWord.length; i++) {
-                                const cX = startX + i * dir.x, cY = startY + i * dir.y;
-                                if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) { canPlace = false; break; }
+                                const cX = startX + i * dir.x;
+                                const cY = startY + i * dir.y;
+                                if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) {
+                                    canPlace = false;
+                                    break;
+                                }
                             }
                             if (canPlace) {
                                 const locations = [];
                                 for (let i = 0; i < upperWord.length; i++) {
-                                    const cX = startX + i * dir.x, cY = startY + i * dir.y;
+                                    const cX = startX + i * dir.x;
+                                    const cY = startY + i * dir.y;
                                     grid[cY][cX] = upperWord[i];
                                     locations.push({ x: cX, y: cY });
                                 }
@@ -207,7 +351,9 @@
 
                 for (let y = 0; y < gridSize; y++) {
                     for (let x = 0; x < gridSize; x++) {
-                        if (grid[y][x] === '') { grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; }
+                        if (grid[y][x] === '') {
+                            grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                        }
                         const cell = document.createElement('div');
                         cell.textContent = grid[y][x];
                         gridElement.appendChild(cell);
@@ -218,7 +364,7 @@
                     const li = document.createElement('li');
                     li.textContent = word;
                     wordListElement.appendChild(li);
-});
+                });
                 
                 let finalStatus = sourceMessage;
                 if (placedWordDetails.length < words.length && placedWordDetails.length > 0) {
@@ -227,21 +373,11 @@
                 statusElement.textContent = finalStatus;
 
                 generateBtn.disabled = false;
-                if (placedWordDetails.length > 0) { revealBtn.disabled = false; }
+                if (placedWordDetails.length > 0) {
+                    revealBtn.disabled = false;
+                }
                 loader.classList.add('hidden');
             }, 50);
-        }
-        
-        function revealWords() {
-            const gridCells = document.querySelectorAll('#grid div');
-            if (placedWordDetails.length === 0 || gridCells.length === 0) return;
-            placedWordDetails.forEach(detail => {
-                detail.locations.forEach(loc => {
-                    const index = loc.y * gridSize + loc.x;
-                    if (gridCells[index]) gridCells[index].classList.add('revealed');
-                });
-            });
-            revealBtn.disabled = true;
         }
 
         window.addEventListener('load', generatePuzzle);
