@@ -169,7 +169,6 @@
             min-height: 20px;
             color: #6c757d;
         }
-        /* --- Style for the new version number --- */
         #version-info {
             text-align: center;
             margin-top: 20px;
@@ -213,9 +212,8 @@
             <p id="source-status"></p>
         </div>
 
-        <!-- Version number added here -->
         <div id="version-info">
-            v1.0
+            v1.2
         </div>
     </div>
 
@@ -249,7 +247,8 @@
             }
             
             const seedWord = INTERNAL_WORD_BANK[Math.floor(Math.random() * INTERNAL_WORD_BANK.length)];
-            const apiUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=100`;
+            // Fetching a larger pool of words to ensure enough valid ones are found.
+            const apiUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150`;
 
             try {
                 const controller = new AbortController();
@@ -265,13 +264,18 @@
                 const wordsData = await response.json();
                 const words = wordsData.map(item => item.word);
 
-                const filteredWords = words.filter(word => word.length > 3 && word.length <= 15 && !word.includes(' '));
+                // Stricter filtering: rejects words with spaces, hyphens, or apostrophes.
+                const filteredWords = words.filter(word => {
+                    const hasInvalidChars = /[ '-]/.test(word); // Regex to find space, ' or -
+                    return word.length > 3 && word.length <= 15 && !hasInvalidChars;
+                });
                 
                 if (filteredWords.length < wordCount) {
                     throw new Error("API did not provide enough suitable words, using fallback.");
                 }
                 
                 statusElement.textContent = 'Source: Live API (Datamuse)';
+                // Take the first 15 valid words from the filtered list.
                 return filteredWords.slice(0, wordCount);
 
             } catch (error) {
