@@ -160,15 +160,9 @@
         #reveal-btn { background-color: #28a745; }
         #reveal-btn:hover:not(:disabled) { background-color: #218838; }
 
+        /* Options container is hidden for now as it's not used by this logic */
         .options-container { 
-            text-align: center; 
-            margin-top: 20px; 
-            font-size: 0.9em; 
-            color: #6c757d; 
-        }
-        .options-container label { 
-            cursor: pointer; 
-            user-select: none; 
+            display: none; 
         }
         #status-container { 
             text-align: center; 
@@ -212,7 +206,6 @@
         </div>
         
         <div class="options-container">
-            <!-- This checkbox is now for future use, as the default is themed -->
             <label>
                 <input type="checkbox" id="themed-api-checkbox" checked>
                 Generate Themed Puzzle
@@ -224,7 +217,7 @@
         </div>
 
         <div id="version-info">
-            v1.5
+            v1.6
         </div>
     </div>
 
@@ -244,29 +237,31 @@
         const themeTitleElement = document.getElementById('theme-title');
 
         /**
-         * The main word fetching function with the "Two API Call" and "Retry" logic.
+         * Fetches a list of themed words using a robust, single-API, two-step process.
          */
         async function getWordList() {
-            const maxRetries = 10;
-            const seedApiUrl = 'https://random-word-api.herokuapp.com/word?number=1';
+            const maxRetries = 20; // Increased retry count
+            const letters = "abcdefghijklmnopqrstuvwxyz";
 
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
                 loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`;
                 try {
-                    // --- API Call #1: Get a random seed word ---
-                    let response = await fetch(seedApiUrl);
+                    // --- Step 1: Get a random seed word from Datamuse ---
+                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+                    let response = await fetch(`https://api.datamuse.com/words?sp=${randomLetter}*&max=500`);
                     if (!response.ok) throw new Error('Seed API Failed');
-                    const seedData = await response.json();
-                    const seedWord = seedData[0];
+                    
+                    let seedWords = await response.json();
+                    if (seedWords.length === 0) continue; // If no words found for that letter, try another.
+                    
+                    const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)].word;
 
-                    if (!seedWord) throw new Error('No seed word received');
-
-                    // --- API Call #2: Get words related to the seed word ---
+                    // --- Step 2: Get words related to the seed word ---
                     const datamuseUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150`;
                     response = await fetch(datamuseUrl);
                     if (!response.ok) throw new Error('Datamuse API Failed');
+
                     const wordsData = await response.json();
-                    
                     const words = wordsData.map(item => item.word);
                     const filteredWords = words.filter(word => {
                         const hasInvalidChars = /[ '-]/.test(word);
@@ -277,9 +272,8 @@
                     if (filteredWords.length >= wordCount) {
                         statusElement.textContent = 'Source: Live Themed API (Success)';
                         themeTitleElement.textContent = `Theme: ${seedWord.toUpperCase()}`;
-                        return filteredWords.slice(0, wordCount); // Success! Return the words.
+                        return filteredWords.slice(0, wordCount); // Success!
                     }
-                    // If not enough words, the loop will just continue to the next attempt.
                     console.log(`Attempt ${attempt} failed: Theme "${seedWord}" gave only ${filteredWords.length} valid words.`);
 
                 } catch (error) {
@@ -288,7 +282,6 @@
             }
 
             // --- Final Failure ---
-            // This part is only reached if the loop completes after 10 failed attempts.
             throw new Error(`Failed to generate a themed puzzle after ${maxRetries} attempts.`);
         }
 
@@ -306,7 +299,6 @@
         }
 
         async function generatePuzzle() {
-            // 1. Setup UI for loading state
             generateBtn.disabled = true;
             revealBtn.disabled = true;
             loader.classList.remove('hidden');
@@ -317,11 +309,10 @@
             placedWordDetails = [];
 
             try {
-                // 2. Get the list of words using our new logic
                 const words = await getWordList();
                 loaderText.textContent = 'Building puzzle...';
 
-                // --- Puzzle Generation Logic (this remains the same) ---
+                // --- Puzzle Generation Logic ---
                 const sourceMessage = statusElement.textContent;
                 const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
                 const directions = [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 } ];
@@ -340,15 +331,13 @@
                         if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
                             let canPlace = true;
                             for (let i = 0; i < upperWord.length; i++) {
-                                const cX = startX + i * dir.x;
-                                const cY = startY + i * dir.y;
+                                const cX = startX + i * dir.x, cY = startY + i * dir.y;
                                 if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) { canPlace = false; break; }
                             }
                             if (canPlace) {
                                 const locations = [];
                                 for (let i = 0; i < upperWord.length; i++) {
-                                    const cX = startX + i * dir.x;
-                                    const cY = startY + i * dir.y;
+                                    const cX = startX + i * dir.x, cY = startY + i * dir.y;
                                     grid[cY][cX] = upperWord[i];
                                     locations.push({ x: cX, y: cY });
                                 }
@@ -382,15 +371,11 @@
                 statusElement.textContent = finalStatus;
 
             } catch (error) {
-                // This 'catch' block handles the final failure from getWordList
                 statusElement.textContent = error.message;
                 console.error("Could not generate a puzzle:", error);
             } finally {
-                // 3. Reset UI state regardless of success or failure
                 generateBtn.disabled = false;
-                if (placedWordDetails.length > 0) {
-                    revealBtn.disabled = false;
-                }
+                if (placedWordDetails.length > 0) { revealBtn.disabled = false; }
                 loader.classList.add('hidden');
             }
         }
