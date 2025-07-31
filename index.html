@@ -187,9 +187,14 @@
         
         /* --- PRINT STYLES --- */
         @media print {
+            /* This rule removes the browser's default headers and footers */
+            @page {
+                size: A4;
+                margin: 0.5in;
+            }
             body {
                 background-color: #fff;
-                font-size: 12pt; /* Use points for print, often helps with scaling */
+                font-size: 12pt;
                 margin: 0;
                 padding: 0;
             }
@@ -211,7 +216,7 @@
                 border: none;
             }
             #word-list-container {
-                margin-top: 15px; /* Reduce top margin for print */
+                margin-top: 15px;
             }
         }
     </style>
@@ -255,7 +260,7 @@
         </div>
 
         <div id="version-info">
-            v1.8
+            v1.9
         </div>
     </div>
 
@@ -303,12 +308,12 @@
                     });
 
                     if (filteredWords.length >= wordCount) {
-                        // SUCCESS! Now get the definition for the theme word.
                         let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
                         if (defResponse.ok) {
                             const defData = await defResponse.json();
                             if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                const definition = defData[0].defs[0].split('\t')[1];
+                                // Improved definition cleaning with regex
+                                const definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '');
                                 themeDefinitionElement.textContent = `"${definition}"`;
                             }
                         }
