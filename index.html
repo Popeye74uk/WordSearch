@@ -39,6 +39,10 @@
             color: #6c757d;
             margin-top: 4px;
             min-height: 1.2em;
+            /* New styles to align with the grid */
+            max-width: 580px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         /* --- Puzzle Area --- */
@@ -259,7 +263,7 @@
         </div>
 
         <div id="version-info">
-            v2.0
+            v2.1
         </div>
     </div>
 
@@ -311,8 +315,10 @@
                         if (defResponse.ok) {
                             const defData = await defResponse.json();
                             if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                // FINAL FIX: Remove prefix and trim whitespace from both ends.
-                                const definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '').trim();
+                                // Logic to process the definition string
+                                let definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '').trim();
+                                // Take only the first sentence for conciseness
+                                definition = definition.split('.')[0] + '.';
                                 themeDefinitionElement.textContent = `"${definition}"`;
                             }
                         }
