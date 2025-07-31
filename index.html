@@ -188,18 +188,30 @@
         /* --- PRINT STYLES --- */
         @media print {
             body {
-                background-color: #fff; /* Use a white background for printing */
+                background-color: #fff;
+                font-size: 12pt; /* Use points for print, often helps with scaling */
+                margin: 0;
+                padding: 0;
+            }
+            .container {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
             }
             h1, .controls, .options-container, #status-container, #version-info {
-                display: none; /* Hide all non-essential elements */
+                display: none;
             }
             #grid-wrapper {
-                border: 2px solid #333; /* Add a solid border */
-                border-radius: 10px;    /* Add rounded corners */
-                padding: 10px;          /* Add some space between the border and the grid */
+                border: 2px solid #333;
+                border-radius: 10px;
+                padding: 10px;
             }
             #grid {
-                border: none; /* Remove the grid's default border to avoid a double-border look */
+                border: none;
+            }
+            #word-list-container {
+                margin-top: 15px; /* Reduce top margin for print */
             }
         }
     </style>
@@ -243,7 +255,7 @@
         </div>
 
         <div id="version-info">
-            v1.7
+            v1.8
         </div>
     </div>
 
@@ -279,21 +291,11 @@
                     
                     const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)].word;
                     
-                    // Modified API call to include definitions (&md=d)
-                    const datamuseUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150&md=d`;
+                    const datamuseUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150`;
                     response = await fetch(datamuseUrl);
                     if (!response.ok) throw new Error('Datamuse API Failed');
 
                     const wordsData = await response.json();
-                    
-                    // Find the definition for our main theme word
-                    const themeWordData = wordsData.find(d => d.word === seedWord);
-                    let definition = null;
-                    if (themeWordData && themeWordData.defs && themeWordData.defs.length > 0) {
-                        // Grab the first definition and remove the part of speech tag (e.g., "n\t")
-                        definition = themeWordData.defs[0].split('\t')[1];
-                    }
-
                     const words = wordsData.map(item => item.word);
                     const filteredWords = words.filter(word => {
                         const hasInvalidChars = /[ '-]/.test(word);
@@ -301,11 +303,18 @@
                     });
 
                     if (filteredWords.length >= wordCount) {
+                        // SUCCESS! Now get the definition for the theme word.
+                        let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
+                        if (defResponse.ok) {
+                            const defData = await defResponse.json();
+                            if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
+                                const definition = defData[0].defs[0].split('\t')[1];
+                                themeDefinitionElement.textContent = `"${definition}"`;
+                            }
+                        }
+                        
                         statusElement.textContent = 'Source: Live Themed API (Success)';
                         themeTitleElement.textContent = `Theme: ${seedWord.toUpperCase()}`;
-                        if (definition) {
-                            themeDefinitionElement.textContent = `"${definition}"`;
-                        }
                         return filteredWords.slice(0, wordCount);
                     }
                     console.log(`Attempt ${attempt} failed: Theme "${seedWord}" gave only ${filteredWords.length} valid words.`);
@@ -339,14 +348,13 @@
             statusElement.textContent = '';
             gridElement.innerHTML = '';
             themeTitleElement.textContent = '';
-            themeDefinitionElement.textContent = ''; // Clear old definition
+            themeDefinitionElement.textContent = '';
             placedWordDetails = [];
 
             try {
                 const words = await getWordList();
                 loaderText.textContent = 'Building puzzle...';
 
-                // --- Puzzle Generation Logic ---
                 const sourceMessage = statusElement.textContent;
                 const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
                 const directions = [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 } ];
