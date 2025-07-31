@@ -29,8 +29,16 @@
         }
         h2.theme-title {
             margin-top: 5px;
+            margin-bottom: 0;
             font-size: 1.2em;
             font-weight: normal;
+        }
+        p#theme-definition {
+            text-align: center;
+            font-style: italic;
+            color: #6c757d;
+            margin-top: 4px;
+            min-height: 1.2em;
         }
 
         /* --- Puzzle Area --- */
@@ -160,7 +168,6 @@
         #reveal-btn { background-color: #28a745; }
         #reveal-btn:hover:not(:disabled) { background-color: #218838; }
 
-        /* Options container is hidden for now as it's not used by this logic */
         .options-container { 
             display: none; 
         }
@@ -177,6 +184,24 @@
             font-size: 0.8em;
             color: #adb5bd;
         }
+        
+        /* --- PRINT STYLES --- */
+        @media print {
+            body {
+                background-color: #fff; /* Use a white background for printing */
+            }
+            h1, .controls, .options-container, #status-container, #version-info {
+                display: none; /* Hide all non-essential elements */
+            }
+            #grid-wrapper {
+                border: 2px solid #333; /* Add a solid border */
+                border-radius: 10px;    /* Add rounded corners */
+                padding: 10px;          /* Add some space between the border and the grid */
+            }
+            #grid {
+                border: none; /* Remove the grid's default border to avoid a double-border look */
+            }
+        }
     </style>
 </head>
 <body>
@@ -184,6 +209,7 @@
     <div class="container">
         <h1>Word Search Generator</h1>
         <h2 id="theme-title" class="theme-title"></h2>
+        <p id="theme-definition"></p>
 
         <div id="puzzle-container">
             <div id="grid-wrapper">
@@ -217,7 +243,7 @@
         </div>
 
         <div id="version-info">
-            v1.6
+            v1.7
         </div>
     </div>
 
@@ -235,44 +261,52 @@
         const loader = document.getElementById('loader');
         const loaderText = document.getElementById('loader-text');
         const themeTitleElement = document.getElementById('theme-title');
+        const themeDefinitionElement = document.getElementById('theme-definition');
 
-        /**
-         * Fetches a list of themed words using a robust, single-API, two-step process.
-         */
         async function getWordList() {
-            const maxRetries = 20; // Increased retry count
+            const maxRetries = 20;
             const letters = "abcdefghijklmnopqrstuvwxyz";
 
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
                 loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`;
                 try {
-                    // --- Step 1: Get a random seed word from Datamuse ---
                     const randomLetter = letters[Math.floor(Math.random() * letters.length)];
                     let response = await fetch(`https://api.datamuse.com/words?sp=${randomLetter}*&max=500`);
                     if (!response.ok) throw new Error('Seed API Failed');
                     
                     let seedWords = await response.json();
-                    if (seedWords.length === 0) continue; // If no words found for that letter, try another.
+                    if (seedWords.length === 0) continue;
                     
                     const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)].word;
-
-                    // --- Step 2: Get words related to the seed word ---
-                    const datamuseUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150`;
+                    
+                    // Modified API call to include definitions (&md=d)
+                    const datamuseUrl = `https://api.datamuse.com/words?ml=${seedWord}&max=150&md=d`;
                     response = await fetch(datamuseUrl);
                     if (!response.ok) throw new Error('Datamuse API Failed');
 
                     const wordsData = await response.json();
+                    
+                    // Find the definition for our main theme word
+                    const themeWordData = wordsData.find(d => d.word === seedWord);
+                    let definition = null;
+                    if (themeWordData && themeWordData.defs && themeWordData.defs.length > 0) {
+                        // Grab the first definition and remove the part of speech tag (e.g., "n\t")
+                        definition = themeWordData.defs[0].split('\t')[1];
+                    }
+
                     const words = wordsData.map(item => item.word);
                     const filteredWords = words.filter(word => {
                         const hasInvalidChars = /[ '-]/.test(word);
                         return word.length > 3 && word.length <= 15 && !hasInvalidChars;
                     });
 
-                    // --- Check for Success ---
                     if (filteredWords.length >= wordCount) {
                         statusElement.textContent = 'Source: Live Themed API (Success)';
                         themeTitleElement.textContent = `Theme: ${seedWord.toUpperCase()}`;
-                        return filteredWords.slice(0, wordCount); // Success!
+                        if (definition) {
+                            themeDefinitionElement.textContent = `"${definition}"`;
+                        }
+                        return filteredWords.slice(0, wordCount);
                     }
                     console.log(`Attempt ${attempt} failed: Theme "${seedWord}" gave only ${filteredWords.length} valid words.`);
 
@@ -281,7 +315,6 @@
                 }
             }
 
-            // --- Final Failure ---
             throw new Error(`Failed to generate a themed puzzle after ${maxRetries} attempts.`);
         }
 
@@ -306,6 +339,7 @@
             statusElement.textContent = '';
             gridElement.innerHTML = '';
             themeTitleElement.textContent = '';
+            themeDefinitionElement.textContent = ''; // Clear old definition
             placedWordDetails = [];
 
             try {
