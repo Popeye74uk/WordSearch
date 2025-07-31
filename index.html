@@ -161,6 +161,9 @@
             border-radius: 5px; 
             transition: all 0.2s; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            /* New styles for uniform size */
+            min-width: 200px;
+            box-sizing: border-box;
         }
         button:hover:not(:disabled) { 
             transform: translateY(-2px); 
@@ -216,7 +219,8 @@
         </div>
         
         <div class="controls">
-            <button id="generate-btn" onclick="generatePuzzle()">Generate New Puzzle</button>
+            <!-- Label changed here -->
+            <button id="generate-btn" onclick="generatePuzzle()">New Puzzle</button>
             <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
         </div>
 
@@ -229,7 +233,7 @@
         </div>
 
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v2.3</div>
+        <div id="version-info">v2.4</div>
     </div>
     
     <script>
@@ -415,7 +419,6 @@
             const margin = 15;
             let currentY = margin;
 
-            // --- Draw Theme and Definition ---
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(16);
             doc.text("Word Search Puzzle", pageW / 2, currentY, { align: 'center' });
@@ -431,17 +434,16 @@
                 doc.setFontSize(10);
                 const defLines = doc.splitTextToSize(`"${currentDefinition}"`, pageW - (margin * 2) - 20);
                 doc.text(defLines, pageW / 2, currentY, { align: 'center' });
-                currentY += (defLines.length * 3.5); // Adjust Y based on definition height
+                currentY += (defLines.length * 3.5);
             }
             
-            // --- Draw Grid ---
-            const gridTotalSize = 150; // Increased size for better space usage
+            const gridTotalSize = 150;
             const cellSize = gridTotalSize / gridSize;
             const startX = (pageW - gridTotalSize) / 2;
-            const startY = currentY + 5; // Small, consistent gap
+            const startY = currentY + 5;
 
             doc.setFont('courier', 'bold');
-            doc.setFontSize(12); // Increased font size
+            doc.setFontSize(12);
             doc.setLineWidth(0.2);
             doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
 
@@ -453,8 +455,7 @@
                 }
             }
 
-            // --- Draw Word List ---
-            const listStartY = startY + gridTotalSize + 12; // Adjusted spacing
+            const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(12);
             doc.text("Words to Find:", pageW / 2, listStartY, { align: 'center' });
