@@ -30,16 +30,14 @@
         button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
         #generate-btn { background-color: #007bff; }
-        #generate-btn:hover:not(:disabled) { background-color: #0056b3; }
         #reveal-btn { background-color: #28a745; }
-        #reveal-btn:hover:not(:disabled) { background-color: #218838; }
         #download-pdf-btn { background-color: #6f42c1; }
-        #download-pdf-btn:hover:not(:disabled) { background-color: #5a32a3; }
-        #download-book-btn { background-color: #dc3545; }
-        #download-book-btn:hover:not(:disabled) { background-color: #c82333; }
-        #cancel-btn { background-color: #6c757d; min-width: 120px; }
-        .book-controls label { margin-right: 10px; }
-        .book-controls input[type="number"] { width: 70px; padding: 8px; font-size: 1em; border-radius: 5px; border: 1px solid #ced4da; }
+        #make-book-btn { background-color: #fd7e14; } /* Orange */
+        #create-book-btn { background-color: #dc3545; } /* Red */
+        #cancel-btn, #cancel-book-options-btn { background-color: #6c757d; min-width: 120px; }
+        .generate-book-controls { display: none; } /* Hidden by default */
+        .generate-book-controls label { margin-right: 10px; }
+        .generate-book-controls input[type="number"] { width: 70px; padding: 8px; font-size: 1em; border-radius: 5px; border: 1px solid #ced4da; }
         .options-container { display: none; }
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
@@ -78,33 +76,39 @@
             <button id="download-pdf-btn" onclick="downloadPdf()">Download as PDF</button>
         </div>
         
-        <div class="controls book-controls">
+        <div class="controls book-controls" id="initial-book-controls">
+            <button id="make-book-btn" onclick="showBookOptions()">Make Book</button>
+        </div>
+
+        <div class="controls book-controls generate-book-controls" id="generate-book-controls">
             <label for="puzzle-count">Number of Puzzles:</label>
             <input type="number" id="puzzle-count" value="10" min="1" max="100">
-            <button id="download-book-btn" onclick="downloadBook()">Download Book</button>
+            <button id="create-book-btn" onclick="downloadBook()">Create Book</button>
+            <button id="cancel-book-options-btn" onclick="resetBookUI()">Cancel</button>
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v2.5</div>
+        <div id="version-info">v2.6</div>
     </div>
     
     <script>
         const gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
-        let isGeneratingBook = false; // Flag to control the book generation loop
+        let isGeneratingBook = false;
 
         const gridElement = document.getElementById('grid'), wordListElement = document.getElementById('words'),
               revealBtn = document.getElementById('reveal-btn'), generateBtn = document.getElementById('generate-btn'),
               statusElement = document.getElementById('source-status'), loader = document.getElementById('loader'),
               loaderText = document.getElementById('loader-text'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), downloadPdfBtn = document.getElementById('download-pdf-btn'),
-              downloadBookBtn = document.getElementById('download-book-btn'), cancelBtn = document.getElementById('cancel-btn');
+              makeBookBtn = document.getElementById('make-book-btn'), createBookBtn = document.getElementById('create-book-btn'),
+              cancelBtn = document.getElementById('cancel-btn'), initialBookControls = document.getElementById('initial-book-controls'),
+              generateBookControls = document.getElementById('generate-book-controls');
         
-        // --- Core Data Generation ---
         async function generatePuzzleData() {
             const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                if (!isGeneratingBook && document.getElementById('loader-text').textContent.includes('Finding a theme')) {
+                if (!isGeneratingBook && loader.textContent.includes('Finding a theme')) {
                     loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`;
                 }
                 try {
@@ -127,7 +131,7 @@
                         if (defResponse.ok) {
                             const defData = await defResponse.json();
                             if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '').trim().split('.')[0] + '.';
+                                definition = defData[0].defs[0].replace(/^[a-z]+\.?\s+/, '').trim().split('.')[0] + '.';
                             }
                         }
                         const puzzleWords = filteredWords.slice(0, wordCount);
@@ -178,13 +182,12 @@
             return { grid, placedDetails };
         }
 
-        // --- UI Functions ---
         function setUiLoading(isLoading, message = '') {
             generateBtn.disabled = isLoading; revealBtn.disabled = isLoading;
-            downloadPdfBtn.disabled = isLoading; downloadBookBtn.disabled = isLoading;
+            downloadPdfBtn.disabled = isLoading; makeBookBtn.disabled = isLoading; createBookBtn.disabled = isLoading;
             loader.classList.toggle('hidden', !isLoading);
             loaderText.textContent = message;
-            cancelBtn.style.display = 'none'; // Default to hidden
+            cancelBtn.style.display = 'none';
         }
         
         async function generatePuzzle() {
@@ -226,7 +229,6 @@
             revealBtn.disabled = true;
         }
 
-        // --- PDF Functions ---
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) {
             if (pageNum > 1) doc.addPage();
             const pageW = doc.internal.pageSize.getWidth(), margin = 15;
@@ -268,6 +270,16 @@
             doc.save(`Word-Search-${currentTheme}.pdf`);
         }
 
+        function showBookOptions() {
+            initialBookControls.style.display = 'none';
+            generateBookControls.style.display = 'flex';
+        }
+
+        function resetBookUI() {
+            initialBookControls.style.display = 'flex';
+            generateBookControls.style.display = 'none';
+        }
+
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) {
@@ -284,17 +296,17 @@
                 for (let i = 1; i <= puzzleCount; i++) {
                     if (!isGeneratingBook) {
                         statusElement.textContent = "Book generation cancelled.";
-                        return; // Exit if cancelled
+                        return;
                     }
                     loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`;
                     const puzzleData = await generatePuzzleData();
                     drawPuzzleOnPdfPage(doc, puzzleData, i);
-                    await new Promise(resolve => setTimeout(resolve, 500)); // API delay
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
                 doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`);
                 statusElement.textContent = "Book successfully generated!";
             } catch (error) { statusElement.textContent = `Error: ${error.message}`; }
-            finally { isGeneratingBook = false; setUiLoading(false); }
+            finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); }
         }
 
         function cancelBookGeneration() { isGeneratingBook = false; }
