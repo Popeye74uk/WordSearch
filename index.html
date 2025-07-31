@@ -187,7 +187,6 @@
         
         /* --- PRINT STYLES --- */
         @media print {
-            /* This rule removes the browser's default headers and footers */
             @page {
                 size: A4;
                 margin: 0.5in;
@@ -260,7 +259,7 @@
         </div>
 
         <div id="version-info">
-            v1.9
+            v2.0
         </div>
     </div>
 
@@ -312,8 +311,8 @@
                         if (defResponse.ok) {
                             const defData = await defResponse.json();
                             if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                // Improved definition cleaning with regex
-                                const definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '');
+                                // FINAL FIX: Remove prefix and trim whitespace from both ends.
+                                const definition = defData[0].defs[0].replace(/^[a-z]\s*\t/, '').trim();
                                 themeDefinitionElement.textContent = `"${definition}"`;
                             }
                         }
