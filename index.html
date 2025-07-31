@@ -24,7 +24,7 @@
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #word-list-container ul { list-style-type: none; padding: 0; margin: 0; column-count: 3; column-gap: 20px; }
         #word-list-container li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; break-inside: avoid-column; }
-        .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; /* Vertical alignment fix */ }
+        .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; }
         .pdf-controls, .book-controls { margin-top: 15px; }
         button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-width: 200px; box-sizing: border-box; }
         button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
@@ -87,7 +87,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v2.7</div>
+        <div id="version-info">v2.8</div>
     </div>
     
     <script>
@@ -132,7 +132,6 @@
                             }
                         }
                         const puzzleWords = filteredWords.slice(0, wordCount);
-                        // **BUG FIX:** Return the full placedDetails object, not just the words.
                         const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                         return { theme: seedWord.toUpperCase(), definition, grid, placedDetails };
                     }
@@ -196,7 +195,6 @@
                 const puzzleData = await generatePuzzleData();
                 currentTheme = puzzleData.theme; currentDefinition = puzzleData.definition;
                 currentGridState = puzzleData.grid; 
-                // **BUG FIX:** Correctly populate placedWordDetails from the full data object.
                 placedWordDetails = puzzleData.placedDetails;
                 
                 statusElement.textContent = 'Source: Live Themed API (Success)';
@@ -256,7 +254,6 @@
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
             const colWidth = (pageW - (margin*2)) / 3, col1X = margin + 10, col2X = margin + colWidth, col3X = margin + (colWidth*2) - 10;
-            // **BUG FIX:** Use the placedDetails from the puzzleData for the word list.
             const wordsForList = puzzleData.placedDetails.map(p => p.word).sort();
             wordsForList.forEach((word, index) => {
                 const xPos = index < 5 ? col1X : (index < 10 ? col2X : col3X);
@@ -269,7 +266,8 @@
             if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: currentDefinition, grid: currentGridState, placedDetails }, 1);
+            // **BUG FIX:** The object passed now has the correct property name.
+            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: currentDefinition, grid: currentGridState, placedDetails: placedWordDetails }, 1);
             doc.save(`Word-Search-${currentTheme}.pdf`);
         }
 
