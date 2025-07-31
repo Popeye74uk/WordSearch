@@ -87,7 +87,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v2.8</div>
+        <div id="version-info">v2.9</div>
     </div>
     
     <script>
@@ -128,7 +128,14 @@
                         if (defResponse.ok) {
                             const defData = await defResponse.json();
                             if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                definition = defData[0].defs[0].replace(/^[a-z]+\.?\s+/, '').trim().split('.')[0] + '.';
+                                // **BUG FIX:** Smarter definition cleaning logic.
+                                let fullDef = defData[0].defs[0].replace(/^[a-z]+\.?\s+/, '').trim();
+                                const firstSentenceEnd = fullDef.indexOf('. ');
+                                if (firstSentenceEnd > 0) {
+                                    definition = fullDef.substring(0, firstSentenceEnd + 1);
+                                } else {
+                                    definition = fullDef;
+                                }
                             }
                         }
                         const puzzleWords = filteredWords.slice(0, wordCount);
@@ -266,8 +273,9 @@
             if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            // **BUG FIX:** The object passed now has the correct property name.
-            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: currentDefinition, grid: currentGridState, placedDetails: placedWordDetails }, 1);
+            // **BUG FIX:** This now correctly reads the DEFINITION text directly from the screen element.
+            const definitionText = themeDefinitionElement.textContent.replace(/"/g, ''); // Remove quotes for PDF
+            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, 1);
             doc.save(`Word-Search-${currentTheme}.pdf`);
         }
 
