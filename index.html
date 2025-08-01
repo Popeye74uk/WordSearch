@@ -65,9 +65,7 @@
 
         <div id="word-list-container">
             <h3>Words to Find:</h3>
-            <div id="word-list-wrapper">
-                <ul id="words"></ul>
-            </div>
+            <ul id="words"></ul>
         </div>
         
         <div class="controls">
@@ -95,16 +93,14 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.7</div>
+        <div id="version-info">v3.8</div>
     </div>
     
     <script>
-        // --- Configuration & Global State ---
         const gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
 
-        // --- DOM Element Cache ---
         const gridElement = document.getElementById('grid'), wordListElement = document.getElementById('words'),
               revealBtn = document.getElementById('reveal-btn'), generateBtn = document.getElementById('generate-btn'),
               statusElement = document.getElementById('source-status'), loader = document.getElementById('loader'),
@@ -114,7 +110,6 @@
               createBookBtn = document.getElementById('create-book-btn'), cancelBtn = document.getElementById('cancel-btn'),
               initialBookControls = document.getElementById('initial-book-controls'), generateBookControls = document.getElementById('generate-book-controls');
         
-        // --- Core Logic ---
         async function generatePuzzleData() {
             const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -192,7 +187,6 @@
             return { grid, placedDetails };
         }
 
-        // --- UI Control Functions ---
         function setUiLoading(isLoading, message = '') {
             generateBtn.disabled = isLoading; revealBtn.disabled = isLoading;
             downloadPdfBtn.disabled = isLoading; makeBookBtn.disabled = isLoading; createBookBtn.disabled = isLoading;
@@ -243,7 +237,6 @@
             revealBtn.disabled = true;
         }
 
-        // --- PDF Generation Functions ---
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) {
             if (pageNum > 1) doc.addPage();
             const pageW = doc.internal.pageSize.getWidth(), margin = 15;
@@ -309,9 +302,8 @@
             
             allPuzzlesData.forEach((puzzleData, index) => {
                 const pageIndex = Math.floor(index / puzzlesPerPage);
-                if (index % puzzlesPerPage === 0) {
-                    if (pageIndex > 0) doc.addPage();
-                }
+                if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); }
+                
                 const i = index % puzzlesPerPage;
                 const col = i % cols, row = Math.floor(i / cols);
                 const startX = margin + col * cellW, startY = margin + row * cellH;
@@ -328,12 +320,20 @@
                     }
                 }
                 
-                doc.setFillColor(180, 180, 180, 0.5); // Translucent gray
+                // --- UPGRADED HIGHLIGHTING ---
+                doc.setFillColor(255, 193, 7, 0.5); // Translucent Yellow
+                doc.setDrawColor(255, 193, 7); // Solid yellow for border
                 puzzleData.placedDetails.forEach(detail => {
                     detail.locations.forEach(loc => {
-                        doc.circle(gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), cellSize/2, 'F');
+                        const rectX = gridStartX + (loc.x * cellSize);
+                        const rectY = gridStartY + (loc.y * cellSize);
+                        doc.rect(rectX, rectY, cellSize, cellSize, 'F');
                     });
                 });
+
+                // --- ADDED BORDER ---
+                doc.setLineWidth(0.2);
+                doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
             });
         }
 
@@ -345,6 +345,11 @@
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
             const includeAnswerKey = document.getElementById('answer-key-checkbox').checked;
             
+            // --- BUG FIX: Clear old grid before showing loader ---
+            gridElement.innerHTML = ''; wordListElement.innerHTML = '';
+            themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
+            statusElement.textContent = '';
+
             isGeneratingBook = true;
             setUiLoading(true);
             loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -364,15 +369,15 @@
                     loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
                     
                     const puzzleData = await generatePuzzleData();
-                    if (includeAnswerKey) allPuzzlesData.push(puzzleData); // Store data for answer key
+                    if (includeAnswerKey) allPuzzlesData.push(puzzleData);
                     drawPuzzleOnPdfPage(doc, puzzleData, i);
                     if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay));
                 }
                 
-                if (includeAnswerKey) {
+                if (includeAnswerKey && allPuzzlesData.length > 0) {
                     loaderText.textContent = "Generating Answer Key...";
                     loaderTimeElement.textContent = '';
-                    await new Promise(resolve => setTimeout(resolve, 50)); // Allow UI to update
+                    await new Promise(resolve => setTimeout(resolve, 50));
                     drawAnswerKey(doc, allPuzzlesData);
                 }
 
