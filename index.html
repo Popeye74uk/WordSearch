@@ -93,7 +93,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.10</div>
+        <div id="version-info">v3.11</div>
     </div>
     
     <script>
@@ -302,7 +302,6 @@
             
             allPuzzlesData.forEach((puzzleData, index) => {
                 if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); }
-                
                 const i = index % puzzlesPerPage;
                 const col = i % cols, row = Math.floor(i / cols);
                 const startX = margin + col * cellW, startY = margin + row * cellH;
@@ -312,24 +311,29 @@
                 const gridTotalSize = 60, cellSize = gridTotalSize / gridSize;
                 const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
 
-                // --- NEW COLOR LOGIC ---
-                doc.setFillColor(255, 193, 7); // Opaque Orange
-                doc.setTextColor(0, 0, 0);   // Black
-                
-                doc.setFont('courier', 'normal').setFontSize(6);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        const rectX = gridStartX + (loc.x * cellSize);
-                        const rectY = gridStartY + (loc.y * cellSize);
-                        doc.rect(rectX, rectY, cellSize, cellSize, 'F');
-                    });
-                });
-
+                // Step 1: Draw all letters in a normal font
+                doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0, 0, 0);
                 for (let y = 0; y < gridSize; y++) {
                     for (let x = 0; x < gridSize; x++) {
                         doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
                     }
                 }
+                
+                // Step 2: Draw the highlight squares
+                doc.setFillColor(255, 193, 7); // Opaque Orange
+                puzzleData.placedDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F');
+                    });
+                });
+
+                // Step 3: Re-draw the solution letters in bold on top
+                doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0, 0, 0);
+                puzzleData.placedDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                    });
+                });
                 
                 doc.setDrawColor(0, 0, 0); // Black border
                 doc.setLineWidth(0.2);
@@ -386,8 +390,7 @@
             finally { 
                 isGeneratingBook = false; 
                 setUiLoading(false); 
-                resetBookUI(); 
-                // --- BUG FIX: Generate a new puzzle after book creation ---
+                resetBookUI();
                 generatePuzzle();
             }
         }
