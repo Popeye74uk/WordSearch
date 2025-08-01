@@ -21,9 +21,9 @@
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #word-list-container { width: 100%; margin: 20px auto 0 auto; text-align: center; }
+        #word-list-container { width: 100%; margin: 20px auto 0 auto; display: flex; justify-content: center; flex-direction: column; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
-        #words { list-style-type: none; padding: 0; margin: 0; display: inline-grid; grid-template-columns: repeat(3, auto); gap: 0 25px; }
+        #words { list-style-type: none; padding: 0; margin: 0 auto; display: grid; grid-template-columns: repeat(3, auto); gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; }
         .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; }
         .pdf-controls, .book-controls { margin-top: 15px; }
@@ -89,7 +89,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.3</div>
+        <div id="version-info">v3.4</div>
     </div>
     
     <script>
@@ -265,7 +265,7 @@
             doc.setFont('helvetica', 'normal').setFontSize(10);
             const wordsForList = puzzleData.placedDetails.map(p => p.word).sort();
             const colWidths = [0, 0, 0];
-            const gap = 15; // Increased gap for PDF
+            const gap = 15;
             wordsForList.forEach((word, index) => {
                 const col = Math.floor(index / 5);
                 const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * doc.getFontSize() / doc.internal.scaleFactor;
@@ -315,7 +315,7 @@
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const delay = 850; // More accurate delay
+            const delay = 850;
 
             try {
                 for (let i = 1; i <= puzzleCount; i++) {
