@@ -23,8 +23,8 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #word-list-container { width: 100%; max-width: 600px; margin: 20px auto 0 auto; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
-        #word-list-container ul { list-style-type: none; padding: 0; margin: 0; column-count: 3; column-gap: 20px; }
-        #word-list-container li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; break-inside: avoid-column; }
+        #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
+        #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; width: 100%; padding-left: 20px; box-sizing: border-box; }
         .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; }
         .pdf-controls, .book-controls { margin-top: 15px; }
         button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-width: 200px; box-sizing: border-box; }
@@ -57,7 +57,7 @@
                 <div id="loader" class="loader hidden">
                     <div class="spinner"></div>
                     <span id="loader-text"></span>
-                    <span id="loader-time"></span> <!-- New element for time estimate -->
+                    <span id="loader-time"></span>
                     <button id="cancel-btn" onclick="cancelBookGeneration()">Cancel</button>
                 </div>
             </div>
@@ -89,7 +89,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.1</div>
+        <div id="version-info">v3.2</div>
     </div>
     
     <script>
@@ -109,17 +109,14 @@
               initialBookControls = document.getElementById('initial-book-controls'), generateBookControls = document.getElementById('generate-book-controls');
         
         /**
-         * The core logic engine. Fetches APIs and generates all data for a single puzzle.
-         * This function does not interact with the screen.
-         * @returns {Promise<object>} A promise that resolves to a complete puzzle data object.
+         * Core logic engine. Fetches APIs and generates data for a single puzzle.
+         * @returns {Promise<object>} A promise resolving to a puzzle data object.
          */
         async function generatePuzzleData() {
             const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                // Update the on-screen loader text if we're not in book mode
                 if (!isGeneratingBook) { loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`; }
                 try {
-                    // Step 1: Get a random seed word from Datamuse
                     const randomLetter = letters[Math.floor(Math.random() * letters.length)];
                     let response = await fetch(`https://api.datamuse.com/words?sp=${randomLetter}*&max=500`);
                     if (!response.ok) continue;
@@ -127,14 +124,12 @@
                     if (seedWords.length === 0) continue;
                     const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)].word;
                     
-                    // Step 2: Get words related to the seed word
                     response = await fetch(`https://api.datamuse.com/words?ml=${seedWord}&max=150`);
                     if (!response.ok) continue;
                     const wordsData = await response.json();
                     const words = wordsData.map(item => item.word);
                     const filteredWords = words.filter(word => !/[ '-]/.test(word) && word.length > 3 && word.length <= 15);
 
-                    // Step 3: Check if we have enough words to proceed
                     if (filteredWords.length >= wordCount) {
                         let definition = '';
                         let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
@@ -147,7 +142,6 @@
                             }
                         }
                         const puzzleWords = filteredWords.slice(0, wordCount);
-                        // Step 4: Generate grid data and return the full package
                         const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                         return { theme: seedWord.toUpperCase(), definition, grid, placedDetails };
                     }
@@ -158,8 +152,8 @@
 
         /**
          * Places words onto a 2D array representing the grid.
-         * @param {string[]} words - An array of 15 words to place.
-         * @returns {object} An object containing the filled grid and details of placed words.
+         * @param {string[]} words - Words to place.
+         * @returns {object} The filled grid and details of placed words.
          */
         function placeWordsOnGrid(words) {
             const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
@@ -201,24 +195,15 @@
         }
 
         // --- UI Control Functions ---
-
-        /**
-         * Sets the loading state of the entire UI.
-         * @param {boolean} isLoading - Whether to show the loading state.
-         * @param {string} [message=''] - An optional message to display in the loader.
-         */
         function setUiLoading(isLoading, message = '') {
             generateBtn.disabled = isLoading; revealBtn.disabled = isLoading;
             downloadPdfBtn.disabled = isLoading; makeBookBtn.disabled = isLoading; createBookBtn.disabled = isLoading;
             loader.classList.toggle('hidden', !isLoading);
             loaderText.textContent = message;
-            cancelBtn.style.display = 'none'; // Always hide cancel button by default
-            loaderTimeElement.textContent = ''; // Clear time estimate
+            cancelBtn.style.display = 'none';
+            loaderTimeElement.textContent = '';
         }
         
-        /**
-         * Generates a single puzzle and displays it on the screen.
-         */
         async function generatePuzzle() {
             setUiLoading(true, 'Finding a theme...');
             gridElement.innerHTML = ''; wordListElement.innerHTML = '';
@@ -226,7 +211,8 @@
             try {
                 const puzzleData = await generatePuzzleData();
                 currentTheme = puzzleData.theme; currentDefinition = puzzleData.definition;
-                currentGridState = puzzleData.grid; placedWordDetails = puzzleData.placedDetails;
+                currentGridState = puzzleData.grid; 
+                placedWordDetails = puzzleData.placedDetails;
                 
                 statusElement.textContent = 'Source: Live Themed API (Success)';
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
@@ -249,9 +235,6 @@
             finally { setUiLoading(false); }
         }
 
-        /**
-         * Highlights the words on the current puzzle grid.
-         */
         function revealWords() {
             const gridCells = document.querySelectorAll('#grid div');
             if (placedWordDetails.length === 0 || gridCells.length === 0) return;
@@ -263,13 +246,6 @@
         }
 
         // --- PDF Generation Functions ---
-
-        /**
-         * The core drawing engine. Draws a complete puzzle onto a jsPDF document instance.
-         * @param {jsPDF} doc - The jsPDF document object.
-         * @param {object} puzzleData - The complete data for one puzzle.
-         * @param {number} pageNum - The page number to draw on.
-         */
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) {
             if (pageNum > 1) doc.addPage();
             const pageW = doc.internal.pageSize.getWidth(), margin = 15;
@@ -295,25 +271,26 @@
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            
-            // --- Centered Word List Logic for PDF ---
-            const listBlockWidth = 180; // The total width of the 3 columns in mm
-            const listStartX = (pageW - listBlockWidth) / 2;
-            const colWidth = listBlockWidth / 3;
-            
             const wordsForList = puzzleData.placedDetails.map(p => p.word).sort();
+            const colWidths = [0, 0, 0];
+            wordsForList.forEach((word, index) => {
+                const col = Math.floor(index / 5);
+                const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * 10 / doc.internal.scaleFactor;
+                if (wordWidth > colWidths[col]) colWidths[col] = wordWidth;
+            });
+            const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + 20; // 10mm gap between columns
+            let listStartX = (pageW - totalListWidth) / 2;
             wordsForList.forEach((word, index) => {
                 const col = Math.floor(index / 5);
                 const row = index % 5;
-                const xPos = listStartX + (col * colWidth);
+                let xPos = listStartX;
+                if (col === 1) xPos += colWidths[0] + 10;
+                if (col === 2) xPos += colWidths[0] + colWidths[1] + 20;
                 const yPos = listStartY + 8 + (row * 6);
                 doc.text(`${index + 1}) ${word}`, xPos, yPos);
             });
         }
         
-        /**
-         * Handles the "Download as PDF" button click for the current on-screen puzzle.
-         */
         function downloadPdf() {
             if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
             const { jsPDF } = window.jspdf;
@@ -322,39 +299,30 @@
             drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, 1);
             doc.save(`Word-Search-${currentTheme}.pdf`);
         }
-        
-        /**
-         * Shows the book generation options when "Make Book" is clicked.
-         */
+
         function showBookOptions() {
             initialBookControls.style.display = 'none';
             generateBookControls.style.display = 'flex';
         }
 
-        /**
-         * Hides the book generation options and shows the initial "Make Book" button.
-         */
         function resetBookUI() {
             initialBookControls.style.display = 'flex';
             generateBookControls.style.display = 'none';
         }
 
-        /**
-         * Handles the entire "Create Book" process.
-         */
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) {
                 alert("Please enter a number between 1 and 100."); return;
             }
             isGeneratingBook = true;
-            setUiLoading(true, `Generating Puzzle 1 of ${puzzleCount}...`);
+            setUiLoading(true);
+            loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
             cancelBtn.style.display = 'block';
-            loader.scrollIntoView({ behavior: 'smooth', block: 'center' }); // Auto-scroll
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const delay = 500; // ms delay between API calls
+            const delay = 600; // Increased delay for more accurate timing
 
             try {
                 for (let i = 1; i <= puzzleCount; i++) {
@@ -368,7 +336,7 @@
                     
                     const puzzleData = await generatePuzzleData();
                     drawPuzzleOnPdfPage(doc, puzzleData, i);
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay));
                 }
                 doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`);
                 statusElement.textContent = "Book successfully generated!";
@@ -376,12 +344,8 @@
             finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); }
         }
 
-        /**
-         * Cancels an in-progress book generation.
-         */
         function cancelBookGeneration() { isGeneratingBook = false; }
         
-        // --- Initial Load ---
         window.addEventListener('load', generatePuzzle);
     </script>
 </body>
