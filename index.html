@@ -93,7 +93,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.9</div>
+        <div id="version-info">v3.10</div>
     </div>
     
     <script>
@@ -301,7 +301,6 @@
             const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows;
             
             allPuzzlesData.forEach((puzzleData, index) => {
-                const pageIndex = Math.floor(index / puzzlesPerPage);
                 if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); }
                 
                 const i = index % puzzlesPerPage;
@@ -313,15 +312,11 @@
                 const gridTotalSize = 60, cellSize = gridTotalSize / gridSize;
                 const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
 
-                doc.setTextColor(0, 0, 0); // Black text
-                doc.setFont('courier', 'normal').setFontSize(6);
-                for (let y = 0; y < gridSize; y++) {
-                    for (let x = 0; x < gridSize; x++) {
-                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    }
-                }
+                // --- NEW COLOR LOGIC ---
+                doc.setFillColor(255, 193, 7); // Opaque Orange
+                doc.setTextColor(0, 0, 0);   // Black
                 
-                doc.setFillColor(255, 193, 7, 0.5);
+                doc.setFont('courier', 'normal').setFontSize(6);
                 puzzleData.placedDetails.forEach(detail => {
                     detail.locations.forEach(loc => {
                         const rectX = gridStartX + (loc.x * cellSize);
@@ -329,6 +324,12 @@
                         doc.rect(rectX, rectY, cellSize, cellSize, 'F');
                     });
                 });
+
+                for (let y = 0; y < gridSize; y++) {
+                    for (let x = 0; x < gridSize; x++) {
+                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                    }
+                }
                 
                 doc.setDrawColor(0, 0, 0); // Black border
                 doc.setLineWidth(0.2);
@@ -382,7 +383,13 @@
                 doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`);
                 statusElement.textContent = "Book successfully generated!";
             } catch (error) { statusElement.textContent = `Error: ${error.message}`; }
-            finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); }
+            finally { 
+                isGeneratingBook = false; 
+                setUiLoading(false); 
+                resetBookUI(); 
+                // --- BUG FIX: Generate a new puzzle after book creation ---
+                generatePuzzle();
+            }
         }
 
         function cancelBookGeneration() { isGeneratingBook = false; }
