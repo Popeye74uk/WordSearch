@@ -93,7 +93,7 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.8</div>
+        <div id="version-info">v3.9</div>
     </div>
     
     <script>
@@ -313,6 +313,7 @@
                 const gridTotalSize = 60, cellSize = gridTotalSize / gridSize;
                 const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
 
+                doc.setTextColor(0, 0, 0); // Black text
                 doc.setFont('courier', 'normal').setFontSize(6);
                 for (let y = 0; y < gridSize; y++) {
                     for (let x = 0; x < gridSize; x++) {
@@ -320,9 +321,7 @@
                     }
                 }
                 
-                // --- UPGRADED HIGHLIGHTING ---
-                doc.setFillColor(255, 193, 7, 0.5); // Translucent Yellow
-                doc.setDrawColor(255, 193, 7); // Solid yellow for border
+                doc.setFillColor(255, 193, 7, 0.5);
                 puzzleData.placedDetails.forEach(detail => {
                     detail.locations.forEach(loc => {
                         const rectX = gridStartX + (loc.x * cellSize);
@@ -330,8 +329,8 @@
                         doc.rect(rectX, rectY, cellSize, cellSize, 'F');
                     });
                 });
-
-                // --- ADDED BORDER ---
+                
+                doc.setDrawColor(0, 0, 0); // Black border
                 doc.setLineWidth(0.2);
                 doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
             });
@@ -345,7 +344,6 @@
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
             const includeAnswerKey = document.getElementById('answer-key-checkbox').checked;
             
-            // --- BUG FIX: Clear old grid before showing loader ---
             gridElement.innerHTML = ''; wordListElement.innerHTML = '';
             themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             statusElement.textContent = '';
