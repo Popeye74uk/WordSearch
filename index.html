@@ -21,9 +21,10 @@
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #word-list-container { width: 100%; margin: 20px auto 0 auto; display: flex; justify-content: center; flex-direction: column; }
+        #word-list-container { width: 100%; margin: 20px auto 0 auto; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
-        #words { list-style-type: none; padding: 0; margin: 0 auto; display: grid; grid-template-columns: repeat(3, auto); gap: 0 40px; }
+        #word-list-wrapper { margin: 0 auto; width: fit-content; } /* Centering wrapper */
+        #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, auto); gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; }
         .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; }
         .pdf-controls, .book-controls { margin-top: 15px; }
@@ -65,7 +66,9 @@
 
         <div id="word-list-container">
             <h3>Words to Find:</h3>
-            <ul id="words"></ul>
+            <div id="word-list-wrapper">
+                <ul id="words"></ul>
+            </div>
         </div>
         
         <div class="controls">
@@ -89,16 +92,14 @@
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.4</div>
+        <div id="version-info">v3.5</div>
     </div>
     
     <script>
-        // --- Configuration & Global State ---
         const gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
 
-        // --- DOM Element Cache ---
         const gridElement = document.getElementById('grid'), wordListElement = document.getElementById('words'),
               revealBtn = document.getElementById('reveal-btn'), generateBtn = document.getElementById('generate-btn'),
               statusElement = document.getElementById('source-status'), loader = document.getElementById('loader'),
@@ -108,7 +109,6 @@
               createBookBtn = document.getElementById('create-book-btn'), cancelBtn = document.getElementById('cancel-btn'),
               initialBookControls = document.getElementById('initial-book-controls'), generateBookControls = document.getElementById('generate-book-controls');
         
-        // --- Core Logic ---
         async function generatePuzzleData() {
             const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -186,7 +186,6 @@
             return { grid, placedDetails };
         }
 
-        // --- UI Control Functions ---
         function setUiLoading(isLoading, message = '') {
             generateBtn.disabled = isLoading; revealBtn.disabled = isLoading;
             downloadPdfBtn.disabled = isLoading; makeBookBtn.disabled = isLoading; createBookBtn.disabled = isLoading;
@@ -237,7 +236,6 @@
             revealBtn.disabled = true;
         }
 
-        // --- PDF Generation Functions ---
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) {
             if (pageNum > 1) doc.addPage();
             const pageW = doc.internal.pageSize.getWidth(), margin = 15;
