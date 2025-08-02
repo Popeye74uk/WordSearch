@@ -109,7 +109,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v5.1</div>
+        <div id="version-info">v5.2</div>
     </div>
     
     <script>
@@ -128,13 +128,7 @@
               initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn');
         
-        function getLevenshteinDistance(a, b) {
-            const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
-            for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; }
-            for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; }
-            for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } }
-            return matrix[b.length][a.length];
-        }
+        function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
         async function generatePuzzleData(isCustom = false) {
             updatePuzzleParameters();
@@ -151,7 +145,7 @@
                     let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
                     const finalList = [];
-                    for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2); if (!isSimilar) finalList.push(wordData); }
+                    for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))); if (!isSimilar) finalList.push(wordData); }
                     if (finalList.length < wordCount) throw new Error("Could not find enough unique words for the theme.");
                     const puzzleWords = finalList.map(d => d.word);
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
@@ -174,7 +168,7 @@
                         let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             const finalList = [];
-                            for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2); if (!isSimilar) finalList.push(wordData); }
+                            for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
                             if (finalList.length < wordCount) continue;
                             let definition = '';
                             let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
@@ -210,6 +204,7 @@
         async function downloadBook() { const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10); if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; } const includeAnswerKey = document.getElementById('answer-key-checkbox').checked; gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = ''; isGeneratingBook = true; setUiLoading(true); loader.scrollIntoView({ behavior: 'smooth', block: 'center' }); cancelBtn.style.display = 'block'; cancelBtn.disabled = false; const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const delay = 850; const allPuzzlesData = []; try { for (let i = 1; i <= puzzleCount; i++) { if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; } const remaining = puzzleCount - i + 1; const timeEstimate = Math.round(remaining * (delay / 1000)); loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`; loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`; updatePuzzleParameters(); const puzzleData = await generatePuzzleData(); if (includeAnswerKey) allPuzzlesData.push(puzzleData); drawPuzzleOnPdfPage(doc, puzzleData, i); if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay)); } if (includeAnswerKey && allPuzzlesData.length > 0) { loaderText.textContent = "Generating Answer Key..."; loaderTimeElement.textContent = ''; await new Promise(resolve => setTimeout(resolve, 50)); drawAnswerKey(doc, allPuzzlesData); } doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`); statusElement.textContent = "Book successfully generated!"; } catch (error) { statusElement.textContent = `Error: ${error.message}`; } finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); generatePuzzle(); } }
         function cancelBookGeneration() { isGeneratingBook = false; }
         function updatePuzzleParameters() { gridSize = parseInt(gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
+        
         window.addEventListener('load', generatePuzzle);
     </script>
 </body>
