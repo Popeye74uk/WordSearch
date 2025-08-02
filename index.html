@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robust Word Search Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Loads the external blocklist before our main script runs -->
+    <script src="blocklist.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f8f9fa; padding: 20px; margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
         .container { width: 100%; max-width: 900px; margin: 0 auto; }
@@ -38,7 +40,7 @@
         #create-book-btn { background-color: #dc3545; }
         #generate-custom-btn { background-color: #007bff; }
         #cancel-btn, #cancel-book-options-btn, #cancel-custom-btn { background-color: #6c757d; }
-        #cancel-btn { min-width: 120px; width: auto; } /* Specific size for loader cancel button */
+        #cancel-btn { min-width: 120px; width: auto; }
         #advanced-options-panel, #generate-book-controls { display: none; }
         .options-panel-grid { display: grid; grid-template-columns: auto 1fr; justify-content: center; align-items: center; gap: 10px 15px; margin: 15px auto 0 auto; max-width: 415px; }
         .options-panel-grid label { text-align: right; }
@@ -108,13 +110,15 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v4.4</div>
+        <div id="version-info">v4.5</div>
     </div>
     
     <script>
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
+
+        const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
         const gridElement = document.getElementById('grid'), wordListElement = document.getElementById('words'),
               revealBtn = document.getElementById('reveal-btn'), statusElement = document.getElementById('source-status'),
@@ -126,16 +130,20 @@
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn');
         
         async function generatePuzzleData(isCustom = false) {
-            updatePuzzleParameters(isCustom);
+            updatePuzzleParameters();
             const customTheme = customThemeInput.value.trim();
             if (isCustom && customTheme) {
+                if (PROFANITY_SET.has(customTheme.toLowerCase())) {
+                    throw new Error(`Theme '${customTheme}' is not permitted.`);
+                }
                 loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
                 try {
                     const response = await fetch(`https://api.datamuse.com/words?ml=${customTheme}&max=200`);
                     if (!response.ok) throw new Error('API Failed');
-                    const words = (await response.json()).map(item => item.word);
+                    let words = (await response.json()).map(item => item.word);
+                    words = words.filter(word => !PROFANITY_SET.has(word.toLowerCase()));
                     const filteredWords = words.filter(word => !/[ '-]/.test(word) && word.length > 3 && word.length <= gridSize);
-                    if (filteredWords.length < wordCount) throw new Error(`Could not find enough words for theme '${customTheme}'.`);
+                    if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe words for theme '${customTheme}'.`);
                     const puzzleWords = filteredWords.slice(0, wordCount);
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                     return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', grid, placedDetails };
@@ -148,11 +156,13 @@
                         let response = await fetch(`https://api.datamuse.com/words?sp=${letters[Math.floor(Math.random()*letters.length)]}*&max=500`);
                         if (!response.ok) continue;
                         let seedWords = (await response.json()).map(w => w.word);
+                        seedWords = seedWords.filter(word => !PROFANITY_SET.has(word.toLowerCase()));
                         if (seedWords.length === 0) continue;
                         const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)];
                         response = await fetch(`https://api.datamuse.com/words?ml=${seedWord}&max=150`);
                         if (!response.ok) continue;
-                        const words = (await response.json()).map(item => item.word);
+                        let words = (await response.json()).map(item => item.word);
+                        words = words.filter(word => !PROFANITY_SET.has(word.toLowerCase()));
                         const filteredWords = words.filter(word => !/[ '-]/.test(word) && word.length > 3 && word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             let definition = '';
@@ -174,10 +184,8 @@
                 throw new Error(`Failed to generate a random themed puzzle after ${maxRetries} attempts.`);
             }
         }
-
         function placeWordsOnGrid(words) { const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill('')); const placedDetails = []; const directions = [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:-1,y:1},{x:-1,y:0},{x:-1,y:-1},{x:0,y:-1},{x:1,y:-1}]; for (const word of words) { const upperWord = word.toUpperCase(); let placed = false, attempts = 0; while (!placed && attempts < 150) { const dir = directions[Math.floor(Math.random() * directions.length)]; const startX = Math.floor(Math.random() * gridSize), startY = Math.floor(Math.random() * gridSize); const endX = startX + (upperWord.length-1)*dir.x, endY = startY + (upperWord.length-1)*dir.y; if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) { let canPlace = true; for (let i=0; i<upperWord.length; i++) { const cX = startX + i*dir.x, cY = startY + i*dir.y; if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) { canPlace = false; break; } } if (canPlace) { const locations = []; for (let i=0; i<upperWord.length; i++) { const cX = startX + i*dir.x, cY = startY + i*dir.y; grid[cY][cX] = upperWord[i]; locations.push({x:cX, y:cY}); } placedDetails.push({word: upperWord, locations}); placed = true; } } attempts++; } } for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; } } return { grid, placedDetails }; }
         function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; }
-        
         async function generatePuzzle(isCustom = false) {
             setUiLoading(true, 'Finding a theme...');
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
@@ -196,7 +204,6 @@
             } catch (error) { statusElement.textContent = error.message; }
             finally { setUiLoading(false); if (isCustom) hideCustomOptions(); }
         }
-
         function updateGridDisplay() { gridElement.innerHTML = ''; gridElement.style.gridTemplateColumns = `repeat(${gridSize}, 28px)`; gridElement.style.gridTemplateRows = `repeat(${gridSize}, 28px)`; let numCols = 3; if (wordCount > 15) numCols = 4; if (wordCount <= 10) numCols = 2; wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`; wordListElement.style.gridAutoFlow = 'column'; wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`; for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { const cell = document.createElement('div'); cell.textContent = currentGridState[y][x]; gridElement.appendChild(cell); } } }
         function revealWords() { const gridCells = document.querySelectorAll('#grid div'); if (placedWordDetails.length === 0 || gridCells.length === 0) return; placedWordDetails.forEach(detail => detail.locations.forEach(loc => { const index = loc.y * gridSize + loc.x; if (gridCells[index]) gridCells[index].classList.add('revealed'); })); revealBtn.disabled = true; }
         function downloadPdf() { if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; } const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const definitionText = themeDefinitionElement.textContent.replace(/"/g, ''); drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, 1); doc.save(`Word-Search-${currentTheme}.pdf`); }
@@ -208,7 +215,7 @@
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; }
         async function downloadBook() { const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10); if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; } const includeAnswerKey = document.getElementById('answer-key-checkbox').checked; gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = ''; isGeneratingBook = true; setUiLoading(true); loader.scrollIntoView({ behavior: 'smooth', block: 'center' }); cancelBtn.style.display = 'block'; cancelBtn.disabled = false; const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const delay = 850; const allPuzzlesData = []; try { for (let i = 1; i <= puzzleCount; i++) { if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; } const remaining = puzzleCount - i + 1; const timeEstimate = Math.round(remaining * (delay / 1000)); loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`; loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`; const puzzleData = await generatePuzzleData(); if (includeAnswerKey) allPuzzlesData.push(puzzleData); drawPuzzleOnPdfPage(doc, puzzleData, i); if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay)); } if (includeAnswerKey && allPuzzlesData.length > 0) { loaderText.textContent = "Generating Answer Key..."; loaderTimeElement.textContent = ''; await new Promise(resolve => setTimeout(resolve, 50)); drawAnswerKey(doc, allPuzzlesData); } doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`); statusElement.textContent = "Book successfully generated!"; } catch (error) { statusElement.textContent = `Error: ${error.message}`; } finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); generatePuzzle(); } }
         function cancelBookGeneration() { isGeneratingBook = false; }
-        function updatePuzzleParameters(isCustom = false) { if (isCustom) { gridSize = parseInt(gridSizeSelect.value, 10); } else { gridSize = 20; gridSizeSelect.value = "20"; } switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
+        function updatePuzzleParameters() { gridSize = parseInt(gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
         window.addEventListener('load', generatePuzzle);
     </script>
 </body>
