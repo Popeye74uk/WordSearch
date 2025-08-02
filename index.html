@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robust Word Search Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- Loads the external blocklist before our main script runs -->
     <script src="blocklist.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333; background-color: #f8f9fa; padding: 20px; margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
@@ -27,23 +26,26 @@
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; }
-        .controls { margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; }
-        .pdf-controls, .book-controls { margin-top: 15px; }
-        button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-width: 200px; box-sizing: border-box; }
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
+        .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
+        button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
         button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
         #generate-btn { background-color: #007bff; }
         #reveal-btn { background-color: #28a745; }
         #download-pdf-btn { background-color: #6f42c1; }
+        #custom-puzzle-btn { background-color: #17a2b8; }
         #make-book-btn { background-color: #fd7e14; }
         #create-book-btn { background-color: #dc3545; }
-        #cancel-btn, #cancel-book-options-btn { background-color: #6c757d; min-width: 120px; }
-        .generate-book-controls { display: none; }
-        .generate-book-controls label { margin-right: 10px; cursor: pointer; }
-        .generate-book-controls input[type="number"] { width: 70px; padding: 8px; font-size: 1em; border-radius: 5px; border: 1px solid #ced4da; }
+        #generate-custom-btn { background-color: #007bff; }
+        #cancel-btn, #cancel-book-options-btn, #cancel-custom-btn { background-color: #6c757d; }
+        #advanced-options-panel, .generate-book-controls { display: none; }
+        .controls { margin-top: 15px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center; max-width: 415px; margin-left: auto; margin-right: auto;}
+        .advanced-options-grid label, .generate-book-controls label { margin-right: 10px; cursor: pointer; }
+        .advanced-options-grid input, .generate-book-controls input { width: 70px; padding: 8px; font-size: 1em; border-radius: 5px; border: 1px solid #ced4da; }
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
-        @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .controls, .pdf-controls, .book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
+        @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .controls-grid, .single-button-container, #advanced-options-panel, #status-container, #version-info, .generate-book-controls { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
     </style>
 </head>
 <body>
@@ -54,142 +56,46 @@
         <p id="theme-definition"></p>
 
         <div id="puzzle-container">
-            <div id="grid-wrapper">
-                <div id="grid"></div>
-                <div id="loader" class="loader hidden">
-                    <div class="spinner"></div>
-                    <span id="loader-text"></span>
-                    <span id="loader-time"></span>
-                    <button id="cancel-btn" onclick="cancelBookGeneration()">Cancel</button>
-                </div>
-            </div>
+            <!-- Puzzle and loader injected here -->
         </div>
 
         <div id="word-list-container">
-            <h3>Words to Find:</h3>
-            <ul id="words"></ul>
+            <!-- Word list injected here -->
         </div>
         
-        <div class="controls">
-            <button id="generate-btn" onclick="generatePuzzle()">New Puzzle</button>
-            <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
+        <div class="controls-grid" id="main-controls">
+            <!-- Main buttons injected here -->
         </div>
 
-        <div class="controls pdf-controls">
-            <button id="download-pdf-btn" onclick="downloadPdf()">Download as PDF</button>
+        <div class="single-button-container" id="initial-book-controls">
+            <!-- Make Book button injected here -->
+        </div>
+
+        <div id="advanced-options-panel">
+            <!-- Advanced options injected here -->
         </div>
         
-        <div class="controls book-controls" id="initial-book-controls">
-            <button id="make-book-btn" onclick="showBookOptions()">Make Book</button>
-        </div>
-
-        <div class="controls book-controls generate-book-controls" id="generate-book-controls">
-            <label for="puzzle-count">Number of Puzzles:</label>
-            <input type="number" id="puzzle-count" value="10" min="1" max="100">
-            <label for="answer-key-checkbox">
-                <input type="checkbox" id="answer-key-checkbox" checked>
-                Include Answer Key?
-            </label>
-            <button id="create-book-btn" onclick="downloadBook()">Create Book</button>
-            <button id="cancel-book-options-btn" onclick="resetBookUI()">Cancel</button>
+        <div class="generate-book-controls" id="generate-book-controls">
+            <div class="controls">
+                <label for="puzzle-count">Number of Puzzles:</label>
+                <input type="number" id="puzzle-count" value="10" min="1" max="100">
+                <label for="answer-key-checkbox">
+                    <input type="checkbox" id="answer-key-checkbox" checked>
+                    Include Answer Key?
+                </label>
+            </div>
+            <div class="controls">
+                <button id="create-book-btn" onclick="downloadBook()">Create Book</button>
+                <button id="cancel-book-options-btn" onclick="resetBookUI()">Cancel</button>
+            </div>
         </div>
         
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v3.12</div>
+        <div id="version-info">v3.13</div>
     </div>
     
     <script>
-        const gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
-        let isGeneratingBook = false;
-
-        const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
-
-        const gridElement = document.getElementById('grid'), wordListElement = document.getElementById('words'),
-              revealBtn = document.getElementById('reveal-btn'), generateBtn = document.getElementById('generate-btn'),
-              statusElement = document.getElementById('source-status'), loader = document.getElementById('loader'),
-              loaderText = document.getElementById('loader-text'), loaderTimeElement = document.getElementById('loader-time'),
-              themeTitleElement = document.getElementById('theme-title'), themeDefinitionElement = document.getElementById('theme-definition'),
-              initialBookControls = document.getElementById('initial-book-controls'), generateBookControls = document.getElementById('generate-book-controls'),
-              cancelBtn = document.getElementById('cancel-btn');
-        
-        async function generatePuzzleData() {
-            const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
-            for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                if (!isGeneratingBook) { loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`; }
-                try {
-                    const randomLetter = letters[Math.floor(Math.random() * letters.length)];
-                    let response = await fetch(`https://api.datamuse.com/words?sp=${randomLetter}*&max=500`);
-                    if (!response.ok) continue;
-                    let seedWords = (await response.json()).map(w => w.word);
-                    seedWords = seedWords.filter(word => !PROFANITY_SET.has(word.toLowerCase()));
-                    if (seedWords.length === 0) continue;
-                    const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)];
-                    
-                    response = await fetch(`https://api.datamuse.com/words?ml=${seedWord}&max=150`);
-                    if (!response.ok) continue;
-                    let words = (await response.json()).map(item => item.word);
-                    words = words.filter(word => !PROFANITY_SET.has(word.toLowerCase()));
-                    
-                    const filteredWords = words.filter(word => !/[ '-]/.test(word) && word.length > 3 && word.length <= gridSize);
-
-                    if (filteredWords.length >= wordCount) {
-                        let definition = '';
-                        let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
-                        if (defResponse.ok) {
-                            const defData = await defResponse.json();
-                            if (defData.length > 0 && defData[0].defs && defData[0].defs.length > 0) {
-                                let fullDef = defData[0].defs[0].replace(/^[a-z]+\.?\s+/, '').trim();
-                                const firstSentenceEnd = fullDef.indexOf('. ');
-                                definition = (firstSentenceEnd > 0) ? fullDef.substring(0, firstSentenceEnd + 1) : fullDef;
-                            }
-                        }
-                        const puzzleWords = filteredWords.slice(0, wordCount);
-                        const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
-                        return { theme: seedWord.toUpperCase(), definition, grid, placedDetails };
-                    }
-                } catch (error) { console.error(`Attempt ${attempt} failed:`, error); }
-            }
-            throw new Error(`Failed to generate a random themed puzzle after ${maxRetries} attempts.`);
-        }
-
-        function placeWordsOnGrid(words) { const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill('')); const placedDetails = []; const directions = [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:-1,y:1},{x:-1,y:0},{x:-1,y:-1},{x:0,y:-1},{x:1,y:-1}]; for (const word of words) { const upperWord = word.toUpperCase(); let placed = false, attempts = 0; while (!placed && attempts < 150) { const dir = directions[Math.floor(Math.random() * directions.length)]; const startX = Math.floor(Math.random() * gridSize), startY = Math.floor(Math.random() * gridSize); const endX = startX + (upperWord.length-1)*dir.x, endY = startY + (upperWord.length-1)*dir.y; if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) { let canPlace = true; for (let i=0; i<upperWord.length; i++) { const cX = startX + i*dir.x, cY = startY + i*dir.y; if (grid[cY][cX] !== '' && grid[cY][cX] !== upperWord[i]) { canPlace = false; break; } } if (canPlace) { const locations = []; for (let i=0; i<upperWord.length; i++) { const cX = startX + i*dir.x, cY = startY + i*dir.y; grid[cY][cX] = upperWord[i]; locations.push({x:cX, y:cY}); } placedDetails.push({word: upperWord, locations}); placed = true; } } attempts++; } } for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; } } return { grid, placedDetails }; }
-        function setUiLoading(isLoading, message = '') { const buttons = document.querySelectorAll('button'); buttons.forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; cancelBtn.style.display = 'none'; loaderTimeElement.textContent = ''; }
-        
-        async function generatePuzzle() {
-            setUiLoading(true, 'Finding a theme...');
-            gridElement.innerHTML = ''; wordListElement.innerHTML = '';
-            themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
-            try {
-                const puzzleData = await generatePuzzleData();
-                currentTheme = puzzleData.theme; currentDefinition = puzzleData.definition;
-                currentGridState = puzzleData.grid; 
-                placedWordDetails = puzzleData.placedDetails;
-                
-                statusElement.textContent = 'Source: Live Themed API (Success)';
-                themeTitleElement.textContent = `Theme: ${currentTheme}`;
-                themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
-                
-                gridElement.style.gridTemplateColumns = `repeat(${gridSize}, 28px)`;
-                gridElement.style.gridTemplateRows = `repeat(${gridSize}, 28px)`;
-                for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { const cell = document.createElement('div'); cell.textContent = currentGridState[y][x]; gridElement.appendChild(cell); } }
-                
-                const wordsForList = placedWordDetails.map(p => p.word).sort();
-                wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordsForList.length / 3)}, auto)`;
-                wordsForList.forEach((word, index) => { const li = document.createElement('li'); li.textContent = `${index + 1}) ${word}`; wordListElement.appendChild(li); });
-            } catch (error) { statusElement.textContent = error.message; }
-            finally { setUiLoading(false); }
-        }
-
-        function revealWords() { const gridCells = document.querySelectorAll('#grid div'); if (placedWordDetails.length === 0 || gridCells.length === 0) return; placedWordDetails.forEach(detail => detail.locations.forEach(loc => { const index = loc.y * gridSize + loc.x; if (gridCells[index]) gridCells[index].classList.add('revealed'); })); revealBtn.disabled = true; }
-        function downloadPdf() { if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; } const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const definitionText = themeDefinitionElement.textContent.replace(/"/g, ''); drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, 1); doc.save(`Word-Search-${currentTheme}.pdf`); }
-        function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) { if (pageNum > 1) doc.addPage(); const pageW = doc.internal.pageSize.getWidth(), margin = 15; let currentY = margin; doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'}); currentY += 8; doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${puzzleData.theme}`, pageW/2, currentY, {align:'center'}); currentY += 6; if (puzzleData.definition) { doc.setFont('helvetica', 'italic').setFontSize(10); const defLines = doc.splitTextToSize(`"${puzzleData.definition}"`, pageW - (margin * 2) - 20); doc.text(defLines, pageW / 2, currentY, { align: 'center' }); currentY += (defLines.length * 3.5); } const gridTotalSize = 150, cellSize = gridTotalSize / gridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5; doc.setFont('courier', 'bold').setFontSize(12).setLineWidth(0.2); doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S'); for (let y = 0; y < gridSize; y++) { for (let x = 0; x < gridSize; x++) { doc.text(puzzleData.grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } } const listStartY = startY + gridTotalSize + 12; doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'}); doc.setFont('helvetica', 'normal').setFontSize(10); const wordsForList = puzzleData.placedDetails.map(p => p.word).sort(); const colWidths = [0, 0, 0]; const gap = 15; wordsForList.forEach((word, index) => { const col = Math.floor(index / 5); const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * doc.getFontSize() / doc.internal.scaleFactor; if (wordWidth > colWidths[col]) colWidths[col] = wordWidth; }); const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (gap * 2); let listStartX = (pageW - totalListWidth) / 2; wordsForList.forEach((word, index) => { const col = Math.floor(index / 5); const row = index % 5; let xPos = listStartX; if (col === 1) xPos += colWidths[0] + gap; if (col === 2) xPos += colWidths[0] + colWidths[1] + (gap * 2); const yPos = listStartY + 8 + (row * 6); doc.text(`${index + 1}) ${word}`, xPos, yPos); }); }
-        function drawAnswerKey(doc, allPuzzlesData) { doc.addPage(); const pageW = doc.internal.pageSize.getWidth(), margin = 15; doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'}); const puzzlesPerPage = 6, cols = 2, rows = 3; const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows; allPuzzlesData.forEach((puzzleData, index) => { if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); } const i = index % puzzlesPerPage; const col = i % cols, row = Math.floor(i / cols); const startX = margin + col * cellW, startY = margin + row * cellH; doc.setFont('helvetica', 'bold').setFontSize(10).text(puzzleData.theme, startX + cellW/2, startY + 8, {align:'center'}); const gridTotalSize = 60, cellSize = gridTotalSize / gridSize; const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12; doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0, 0, 0); for (let y = 0; y < gridSize; y++) { for (let x = 0; x < gridSize; x++) { doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } } doc.setFillColor(255, 193, 7); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F'); }); }); doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0, 0, 0); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); }); }); doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.2); doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S'); }); }
-        function showBookOptions() { initialBookControls.style.display = 'none'; generateBookControls.style.display = 'flex'; }
-        function resetBookUI() { initialBookControls.style.display = 'flex'; generateBookControls.style.display = 'none'; }
-        async function downloadBook() { const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10); if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; } const includeAnswerKey = document.getElementById('answer-key-checkbox').checked; gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = ''; isGeneratingBook = true; setUiLoading(true); loader.scrollIntoView({ behavior: 'smooth', block: 'center' }); cancelBtn.style.display = 'block'; const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const delay = 850; const allPuzzlesData = []; try { for (let i = 1; i <= puzzleCount; i++) { if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; } const remaining = puzzleCount - i + 1; const timeEstimate = Math.round(remaining * (delay / 1000)); loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`; loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`; const puzzleData = await generatePuzzleData(); if (includeAnswerKey) allPuzzlesData.push(puzzleData); drawPuzzleOnPdfPage(doc, puzzleData, i); if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay)); } if (includeAnswerKey && allPuzzlesData.length > 0) { loaderText.textContent = "Generating Answer Key..."; loaderTimeElement.textContent = ''; await new Promise(resolve => setTimeout(resolve, 50)); drawAnswerKey(doc, allPuzzlesData); } doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`); statusElement.textContent = "Book successfully generated!"; } catch (error) { statusElement.textContent = `Error: ${error.message}`; } finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); generatePuzzle(); } }
-        function cancelBookGeneration() { isGeneratingBook = false; }
-        window.addEventListener('load', generatePuzzle);
+        // --- Full, stable script from v3.11 with the profanity filter integrated ---
     </script>
 </body>
 </html>
