@@ -89,7 +89,7 @@
                     <option value="25">25x25</option>
                 </select>
                 <label for="custom-theme-input">Custom Theme:</label>
-                <input type="text" id="custom-theme-input" placeholder="Optional (e.g., Space)">
+                <input type="text" id="custom-theme-input" placeholder="Optional">
             </div>
             <div class="controls-grid">
                 <button id="generate-custom-btn" onclick="generatePuzzle(true)">Generate</button>
@@ -109,7 +109,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v5.0</div>
+        <div id="version-info">v5.2</div>
     </div>
     
     <script>
@@ -128,6 +128,8 @@
               initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn');
         
+        function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
+
         async function generatePuzzleData(isCustom = false) {
             updatePuzzleParameters();
             const customTheme = customThemeInput.value.trim();
@@ -136,13 +138,16 @@
                 if (PROFANITY_SET.has(customTheme.toLowerCase())) throw new Error(`Theme '${customTheme}' is not permitted.`);
                 loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
                 try {
-                    const response = await fetch(`https://api.datamuse.com/words?topics=${customTheme}&max=${apiMaxResults}&md=p`);
+                    const response = await fetch(`https://api.datamuse.com/words?ml=${customTheme}&max=${apiMaxResults}&md=p`);
                     if (!response.ok) throw new Error('API Failed');
                     let wordsData = await response.json();
                     wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
                     let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
-                    const puzzleWords = filteredWords.sort(() => 0.5 - Math.random()).slice(0, wordCount).map(d => d.word);
+                    const finalList = [];
+                    for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))); if (!isSimilar) finalList.push(wordData); }
+                    if (finalList.length < wordCount) throw new Error("Could not find enough unique words for the theme.");
+                    const puzzleWords = finalList.map(d => d.word);
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                     return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', grid, placedDetails };
                 } catch (error) { throw error; }
@@ -156,12 +161,15 @@
                         let seedWords = (await response.json()).map(w => w.word).filter(w => !PROFANITY_SET.has(w.toLowerCase()));
                         if (seedWords.length === 0) continue;
                         const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)];
-                        response = await fetch(`https://api.datamuse.com/words?topics=${seedWord}&max=${apiMaxResults}&md=p`);
+                        response = await fetch(`https://api.datamuse.com/words?ml=${seedWord}&max=${apiMaxResults}&md=p`);
                         if (!response.ok) continue;
                         let wordsData = await response.json();
                         wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
                         let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
+                            const finalList = [];
+                            for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
+                            if (finalList.length < wordCount) continue;
                             let definition = '';
                             let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
                             if (defResponse.ok) {
@@ -172,7 +180,7 @@
                                     definition = (firstSentenceEnd > 0) ? fullDef.substring(0, firstSentenceEnd + 1) : fullDef;
                                 }
                             }
-                            const puzzleWords = filteredWords.sort(() => 0.5 - Math.random()).slice(0, wordCount).map(d => d.word);
+                            const puzzleWords = finalList.map(d => d.word);
                             const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                             return { theme: seedWord.toUpperCase(), definition, grid, placedDetails };
                         }
@@ -188,9 +196,10 @@
         function revealWords() { const gridCells = document.querySelectorAll('#grid div'); if (placedWordDetails.length === 0 || gridCells.length === 0) return; placedWordDetails.forEach(detail => detail.locations.forEach(loc => { const index = loc.y * gridSize + loc.x; if (gridCells[index]) gridCells[index].classList.add('revealed'); })); revealBtn.disabled = true; }
         function downloadPdf() { if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; } const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const definitionText = themeDefinitionElement.textContent.replace(/"/g, ''); drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, 1); doc.save(`Word-Search-${currentTheme}.pdf`); }
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum) { const { theme, definition, grid, placedDetails } = puzzleData; const currentGridSize = grid.length; const currentWordCount = placedDetails.length; if (pageNum > 1) doc.addPage(); const pageW = doc.internal.pageSize.getWidth(), margin = 15; let currentY = margin; doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'}); currentY += 8; doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${theme}`, pageW/2, currentY, {align:'center'}); currentY += 6; if (definition) { doc.setFont('helvetica', 'italic').setFontSize(10); const defLines = doc.splitTextToSize(`"${definition}"`, pageW - (margin*2) - 20); doc.text(defLines, pageW / 2, currentY, { align: 'center' }); currentY += (defLines.length * 3.5); } const gridTotalSize = 150, cellSize = gridTotalSize / currentGridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5; const fontSize = currentGridSize === 25 ? 10 : 12; doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2); doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S'); for (let y = 0; y < currentGridSize; y++) { for (let x = 0; x < currentGridSize; x++) { doc.text(grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } } const listStartY = startY + gridTotalSize + 12; doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'}); doc.setFont('helvetica', 'normal').setFontSize(10); const wordsForList = placedDetails.map(p => p.word).sort(); const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3); const wordsPerCol = Math.ceil(currentWordCount / numCols); const colWidths = Array(numCols).fill(0); const gap = 15; wordsForList.forEach((word, index) => { const col = Math.floor(index / wordsPerCol); const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * doc.getFontSize() / doc.internal.scaleFactor; if (wordWidth > colWidths[col]) colWidths[col] = wordWidth; }); const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (gap * (numCols - 1)); let listStartX = (pageW - totalListWidth) / 2; wordsForList.forEach((word, index) => { const col = Math.floor(index / wordsPerCol); const row = index % wordsPerCol; let xPos = listStartX; for(let i=0; i<col; i++) { xPos += colWidths[i] + gap; } const yPos = listStartY + 8 + (row * 6); doc.text(`${index + 1}) ${word}`, xPos, yPos); }); }
-        function drawAnswerKey(doc, allPuzzlesData) { doc.addPage(); const pageW = doc.internal.pageSize.getWidth(), margin = 15; doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'}); const puzzlesPerPage = 6, cols = 2, rows = 3; const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows; allPuzzlesData.forEach((puzzleData, index) => { if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); } const i = index % puzzlesPerPage; const col = i % cols, row = Math.floor(i / cols); const startX = margin + col * cellW, startY = margin + row * cellH; doc.setFont('helvetica', 'bold').setFontSize(10).text(puzzleData.theme, startX + cellW/2, startY + 8, {align:'center'}); const currentGridSize = puzzleData.grid.length; const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize; const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12; doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0); for (let y = 0; y < currentGridSize; y++) { for (let x = 0; x < currentGridSize; x++) { doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } } doc.setFillColor(255, 193, 7); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F'); }); }); doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); }); }); doc.setDrawColor(0); doc.setLineWidth(0.2); doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S'); }); }
+        function drawAnswerKey(doc, allPuzzlesData) { doc.addPage(); const pageW = doc.internal.pageSize.getWidth(), margin = 15; doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'}); const puzzlesPerPage = 6, cols = 2, rows = 3; const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows; allPuzzlesData.forEach((puzzleData, index) => { if (index > 0 && index % puzzlesPerPage === 0) { doc.addPage(); } const i = index % puzzlesPerPage; const col = i % cols, row = Math.floor(i / cols); const startX = margin + col * cellW, startY = margin + row * cellH; doc.setFont('helvetica', 'bold').setFontSize(10).text(puzzleData.theme, startX + cellW/2, startY + 8, {align:'center'}); const currentGridSize = puzzleData.grid.length; const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize; const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12; doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0); for (let y = 0; y < currentGridSize; y++) { for (let x = 0; x < currentGridSize; x++) { doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } } doc.setFillColor(255, 193, 7); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F'); }); }); doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0); puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); }); }); doc.setDrawColor(0); doc.setLineWidth(0.2); doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S'); }); }
         function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; }
-        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display =.display = 'none'; generateBookControls.style.display = 'block'; }
+        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; }
+        function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; }
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; }
         async function downloadBook() { const puzzleCount = parseInt(document.getElementById('puzzle-count').value, 10); if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; } const includeAnswerKey = document.getElementById('answer-key-checkbox').checked; gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = ''; isGeneratingBook = true; setUiLoading(true); loader.scrollIntoView({ behavior: 'smooth', block: 'center' }); cancelBtn.style.display = 'block'; cancelBtn.disabled = false; const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }); const delay = 850; const allPuzzlesData = []; try { for (let i = 1; i <= puzzleCount; i++) { if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; } const remaining = puzzleCount - i + 1; const timeEstimate = Math.round(remaining * (delay / 1000)); loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`; loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`; updatePuzzleParameters(); const puzzleData = await generatePuzzleData(); if (includeAnswerKey) allPuzzlesData.push(puzzleData); drawPuzzleOnPdfPage(doc, puzzleData, i); if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay)); } if (includeAnswerKey && allPuzzlesData.length > 0) { loaderText.textContent = "Generating Answer Key..."; loaderTimeElement.textContent = ''; await new Promise(resolve => setTimeout(resolve, 50)); drawAnswerKey(doc, allPuzzlesData); } doc.save(`Word-Search-Book-${puzzleCount}-Puzzles.pdf`); statusElement.textContent = "Book successfully generated!"; } catch (error) { statusElement.textContent = `Error: ${error.message}`; } finally { isGeneratingBook = false; setUiLoading(false); resetBookUI(); generatePuzzle(); } }
         function cancelBookGeneration() { isGeneratingBook = false; }
