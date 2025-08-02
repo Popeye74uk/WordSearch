@@ -109,7 +109,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v5.2</div>
+        <div id="version-info">v5.3</div>
     </div>
     
     <script>
@@ -145,7 +145,7 @@
                     let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
                     const finalList = [];
-                    for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))); if (!isSimilar) finalList.push(wordData); }
+                    for (const wordData of filteredWords) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
                     if (finalList.length < wordCount) throw new Error("Could not find enough unique words for the theme.");
                     const puzzleWords = finalList.map(d => d.word);
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
@@ -168,7 +168,7 @@
                         let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             const finalList = [];
-                            for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
+                            for (const wordData of filteredWords) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
                             if (finalList.length < wordCount) continue;
                             let definition = '';
                             let defResponse = await fetch(`https://api.datamuse.com/words?sp=${seedWord}&md=d&max=1`);
