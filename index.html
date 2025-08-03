@@ -28,7 +28,7 @@
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; }
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
-        .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
+        .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
         button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
         button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
@@ -74,6 +74,12 @@
         </div>
         
         <div class="global-options-container">
+            <label for="grid-size-select"><b>Grid Size:</b></label>
+            <select id="grid-size-select">
+                <option value="15">15x15</option>
+                <option value="20" selected>20x20</option>
+                <option value="25">25x25</option>
+            </select>
             <label for="difficulty-select"><b>Difficulty:</b></label>
             <select id="difficulty-select">
                 <option value="easy">Easy</option>
@@ -94,14 +100,8 @@
         <div id="advanced-options-panel">
             <h3>Custom Puzzle</h3>
             <div class="options-panel-grid">
-                <label for="grid-size-select">Grid Size:</label>
-                <select id="grid-size-select">
-                    <option value="15">15x15</option>
-                    <option value="20" selected>20x20</option>
-                    <option value="25">25x25</option>
-                </select>
                 <label for="custom-theme-input">Custom Theme:</label>
-                <input type="text" id="custom-theme-input" placeholder="Optional">
+                <input type="text" id="custom-theme-input" placeholder="e.g. Animals, Space">
             </div>
             <div class="controls-grid">
                 <button id="generate-custom-btn" onclick="generatePuzzle(true)">Generate</button>
@@ -132,7 +132,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v6.9</div>
+        <div id="version-info">v7.0</div>
     </div>
     
     <script>
@@ -265,6 +265,11 @@
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             
+            // If the custom panel was used but no theme was entered, it will now correctly generate a random puzzle with the chosen global settings.
+            if (isFromCustomPanel && customThemeInput.value.trim() === '') {
+                isFromCustomPanel = false;
+            }
+            
             try {
                 const puzzleData = await generatePuzzleData(isFromCustomPanel);
                 currentTheme = puzzleData.theme;
@@ -272,7 +277,7 @@
                 currentGridState = puzzleData.grid;
                 placedWordDetails = puzzleData.placedDetails;
                 const difficulty = document.getElementById('difficulty-select').value;
-                const statusThemeType = (isFromCustomPanel && customThemeInput.value.trim() !== '') ? 'Custom' : 'Random';
+                const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
                 statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
                 themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
