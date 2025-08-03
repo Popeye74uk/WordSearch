@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.2</title> <!-- v8.2 Change: Title updated -->
+    <title>Word Search Generator v8.3</title> <!-- v8.3 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -18,6 +18,7 @@
         #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; }
         #grid div.revealed { background-color: #ffc107; color: #000; }
         #grid div.selecting { background-color: #d0e8ff; }
+        #grid div.hint-reveal { background-color: #6f42c1; color: white; transition: all 0.2s; } /* v8.3: Hint style */
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
@@ -29,7 +30,6 @@
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #343a40; text-align: left; transition: color 0.3s, text-decoration 0.3s; }
         #words li.found { text-decoration: line-through; color: #adb5bd; }
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
-        .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
         .option-group { display: flex; align-items: center; gap: 10px; }
         .option-group select { flex-shrink: 0; }
@@ -40,7 +40,8 @@
         #reveal-btn { background-color: #28a745; }
         #download-pdf-btn { background-color: #6f42c1; }
         #custom-puzzle-btn { background-color: #17a2b8; }
-        #make-book-btn { background-color: #fd7e14; }
+        #make-book-btn { background-color: #dc3545; } /* v8.3: Changed color for new layout */
+        #hint-btn { background-color: #fd7e14; } /* v8.3: New Hint button color */
         #create-book-btn { background-color: #dc3545; }
         #generate-custom-btn { background-color: #007bff; }
         #cancel-btn, #cancel-book-options-btn, #cancel-custom-btn { background-color: #6c757d; }
@@ -55,7 +56,7 @@
         
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
-        @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, .single-button-container, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
+        @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
     
         @media (max-width: 768px) {
             .controls-grid, .options-panel-grid, .book-options-grid {
@@ -97,6 +98,9 @@
             #words {
                 grid-template-columns: 1fr !important;
                 grid-auto-flow: row !important;
+            }
+            .controls-grid {
+                grid-template-columns: 1fr; /* v8.3: Ensure single column for all buttons on smallest screens */
             }
             #book-checkbox-options {
                 flex-direction: column;
@@ -148,15 +152,16 @@
             </div>
         </div>
 
+        <!-- v8.3: New unified button layout -->
         <div class="controls-grid" id="main-controls">
             <button id="generate-btn" onclick="generatePuzzle()">New Puzzle</button>
-            <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
             <button id="custom-puzzle-btn" onclick="showCustomOptions()">Custom Puzzle</button>
+            <button id="hint-btn" onclick="giveHint()">Hint</button>
+            <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
             <button id="download-pdf-btn" onclick="downloadPdf()">Download as PDF</button>
-        </div>
-        <div class="single-button-container" id="initial-book-controls">
             <button id="make-book-btn" onclick="showBookOptions()">Make Book</button>
         </div>
+
         <div id="advanced-options-panel">
             <h3>Custom Puzzle</h3>
             <div class="options-panel-grid">
@@ -192,7 +197,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.2</div> <!-- v8.2 Change: Version number incremented -->
+        <div id="version-info">v8.3</div> <!-- v8.3 Change: Version number incremented -->
     </div>
     
     <script>
@@ -201,7 +206,6 @@
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.2: Interactive selection state
         let isSelecting = false;
         let selectionStartCell = null;
         let selectionEndCell = null;
@@ -215,7 +219,7 @@
               loaderTimeElement = document.getElementById('loader-time'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
               gridSizeSelect = document.getElementById('grid-size-select'), mainControls = document.getElementById('main-controls'),
-              initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
+              advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
               globalOptionsContainer = document.getElementById('global-options-container'),
               gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container'),
@@ -534,10 +538,10 @@
         }
 
         // --- UI State Functions ---
-        function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
-        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
-        function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
-        function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
+        function showCustomOptions() { mainControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; globalOptionsContainer.style.display = 'flex';}
+        function hideCustomOptions() { mainControls.style.display = 'grid'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
+        function showBookOptions() { mainControls.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
+        function resetBookUI() { mainControls.style.display = 'grid'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
 
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
@@ -627,7 +631,7 @@
             }, 250);
         }
 
-        // v8.2 START: Complete Interactive Grid Logic (Mouse & Touch)
+        // --- INTERACTIVE GRID LOGIC (v8.3) ---
         function getCellsOnPath(startCell, endCell) {
             if (!startCell || !endCell) return [];
             
@@ -641,15 +645,15 @@
             const cells = [];
             
             let dir = {x: 0, y: 0};
-            if (Math.abs(dx) === Math.abs(dy)) { // Diagonal
+            if (Math.abs(dx) === Math.abs(dy)) {
                 dir = { x: Math.sign(dx), y: Math.sign(dy) };
-            } else if (Math.abs(dx) > Math.abs(dy)) { // Horizontal
+            } else if (Math.abs(dx) > Math.abs(dy)) {
                 dir = { x: Math.sign(dx), y: 0 };
-            } else { // Vertical
+            } else {
                 dir = { x: 0, y: Math.sign(dy) };
             }
 
-            const pathLength = (dir.x !== 0 && dir.y !== 0) ? Math.abs(dx) : Math.max(Math.abs(dx), Math.abs(dy));
+            const pathLength = Math.max(Math.abs(dx), Math.abs(dy));
 
             for (let i = 0; i <= pathLength; i++) {
                 const x = startX + i * dir.x;
@@ -706,6 +710,28 @@
             selectionEndCell = null;
         }
 
+        function giveHint() {
+            const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
+            if (unfoundWords.length === 0) return;
+
+            const hintBtn = document.getElementById('hint-btn');
+            hintBtn.disabled = true;
+
+            const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
+            const startLocation = wordToHint.locations[0];
+            const cellToHint = gridElement.querySelector(`[data-x='${startLocation.x}'][data-y='${startLocation.y}']`);
+
+            if (cellToHint) {
+                cellToHint.classList.add('hint-reveal');
+                setTimeout(() => {
+                    cellToHint.classList.remove('hint-reveal');
+                    hintBtn.disabled = false;
+                }, 1500);
+            } else {
+                hintBtn.disabled = false; // Re-enable if cell not found for some reason
+            }
+        }
+
         // Mouse Events
         gridElement.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
@@ -733,7 +759,6 @@
         
         gridElement.addEventListener('touchend', handleInteractionEnd);
         gridElement.addEventListener('touchcancel', handleInteractionEnd);
-        // v8.2 END
 
         window.addEventListener('load', () => generatePuzzle(false));
         window.addEventListener('resize', () => {
