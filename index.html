@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.12</title> <!-- v8.12 Change: Title updated -->
+    <title>Word Search Generator v8.13</title> <!-- v8.13 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -16,9 +16,9 @@
         #grid-wrapper { position: relative; }
         #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; cursor: pointer; }
         #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; transition: background-color 0.2s; }
-        #grid div.revealed { background-color: #ffc107; color: #000 !important; } /* v8.12: Add !important to override inline hint styles */
+        #grid div.revealed { background-color: #ffc107; color: #000; }
         #grid div.selecting { background-color: #d0e8ff; }
-        /* v8.12: Removed .hint-reveal class */
+        #grid div.hint-reveal { background-color: #6f42c1; color: white; }
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
@@ -204,7 +204,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.11</div> <!-- v8.11 Change: Version number incremented -->
+        <div id="version-info">v8.12</div> <!-- v8.12 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -445,7 +445,7 @@
             redrawGridStyles();
         }
         
-        // v8.11 -> v8.12: Refactored to use inline styles for hints
+        // v8.12: Refactored to use inline styles for hints for mobile compatibility
         function redrawGridStyles() {
             const allCells = gridElement.querySelectorAll('div[data-x]');
             allCells.forEach(cell => {
@@ -453,10 +453,9 @@
                 const y = cell.dataset.y;
                 const key = `${x},${y}`;
                 const wordsInCell = cellToWordMap.get(key) || [];
-                
                 const isFound = wordsInCell.some(word => foundWords.has(word));
                 
-                // Reset styles
+                // Reset styles first
                 cell.classList.remove('revealed');
                 cell.style.backgroundColor = '';
                 cell.style.color = '';
@@ -516,7 +515,7 @@
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedWordDetails.map(p => p.word).sort();
+            const wordsForList = placedDetails.map(p => p.word).sort();
             const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
             const wordsPerCol = Math.ceil(currentWordCount / numCols);
             const colWidths = Array(numCols).fill(0);
