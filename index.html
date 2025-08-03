@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.16</title> <!-- v8.16 Change: Version updated -->
+    <title>Word Search Generator v8.17</title> <!-- v8.17 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -204,7 +204,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.16</div> <!-- v8.16 Change: Version number incremented -->
+        <div id="version-info">v8.17</div> <!-- v8.17 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -224,7 +224,8 @@
         let selectionStartCell = null;
         let selectionEndCell = null;
         let foundWords = new Set();
-        let hintedCellCoords = null; // v8.16 FIX: Changed from DOM element to coordinate object
+        let activeHintCoords = null; 
+        let solvedHintCoords = new Set(); // v8.17 FIX: New set to store coordinates of used hints.
         let cellToWordMap = new Map();
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
@@ -357,7 +358,8 @@
             hideCompletionModal();
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             foundWords.clear();
-            hintedCellCoords = null; // v8.16 FIX: Reset hint coordinates
+            activeHintCoords = null; 
+            solvedHintCoords.clear(); // v8.17 FIX: Reset solved hints on new puzzle
             
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
@@ -445,22 +447,27 @@
             redrawGridStyles();
         }
         
-        // v8.16: Reworked to use coordinates for robust state
+        // v8.17 FIX: Reworked styling logic for persistent hints
         function redrawGridStyles() {
             const allCells = gridElement.querySelectorAll('div[data-x]');
             allCells.forEach(cell => {
                 const x = cell.dataset.x;
                 const y = cell.dataset.y;
-                const key = `${x},${y}`;
-                const wordsInCell = cellToWordMap.get(key) || [];
+                const coordString = `${x},${y}`;
+                const wordsInCell = cellToWordMap.get(coordString) || [];
+                
                 const isFound = wordsInCell.some(word => foundWords.has(word));
+                const isSolvedHint = solvedHintCoords.has(coordString);
+                const isActiveHint = activeHintCoords && x == activeHintCoords.x && y == activeHintCoords.y;
                 
                 cell.classList.remove('revealed', 'hint-reveal');
 
-                if (isFound) {
-                    cell.classList.add('revealed');
-                } else if (hintedCellCoords && x == hintedCellCoords.x && y == hintedCellCoords.y) {
-                    cell.classList.add('hint-reveal');
+                if (isSolvedHint) {
+                    cell.classList.add('hint-reveal'); // A solved hint cell always stays purple.
+                } else if (isFound) {
+                    cell.classList.add('revealed'); // Other found letters are orange.
+                } else if (isActiveHint) {
+                    cell.classList.add('hint-reveal'); // An active, unsolved hint is purple.
                 }
             });
         }
@@ -468,7 +475,7 @@
         function revealWords() { 
             if (placedWordDetails.length === 0) return;
             placedWordDetails.forEach(detail => foundWords.add(detail.word));
-            hintedCellCoords = null; // v8.16 FIX: Clear hint coordinates
+            activeHintCoords = null; 
             redrawGridStyles();
             revealBtn.disabled = true;
             document.getElementById('hint-btn').disabled = true;
@@ -731,6 +738,7 @@
             pathCells.forEach(c => c.classList.add('selecting'));
         }
 
+        // v8.17 FIX: Reworked to handle the new solvedHintCoords set
         function handleInteractionEnd() {
             if (!isSelecting) return;
             isSelecting = false;
@@ -749,11 +757,11 @@
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
                 
-                // v8.16 FIX: Check if the found word clears the hint
-                if (hintedCellCoords) {
-                    const wordContainsHint = foundDetail.locations.some(loc => loc.x == hintedCellCoords.x && loc.y == hintedCellCoords.y);
+                if (activeHintCoords) {
+                    const wordContainsHint = foundDetail.locations.some(loc => loc.x == activeHintCoords.x && loc.y == activeHintCoords.y);
                     if (wordContainsHint) {
-                        hintedCellCoords = null;
+                        solvedHintCoords.add(`${activeHintCoords.x},${activeHintCoords.y}`);
+                        activeHintCoords = null; // Clear the *active* hint so another can be requested.
                     }
                 }
 
@@ -767,12 +775,11 @@
             selectionEndCell = null;
         }
 
-        // v8.16 FIX: Reworked to use coordinates for robust state management
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.disabled = true;
             
-            if (hintedCellCoords) {
+            if (activeHintCoords) {
                 setTimeout(() => { hintBtn.disabled = false; }, 1000);
                 return;
             }
@@ -785,8 +792,7 @@
             const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
             const startLocation = wordToHint.locations[0];
 
-            // Store the coordinates, not the DOM element
-            hintedCellCoords = { x: startLocation.x, y: startLocation.y };
+            activeHintCoords = { x: startLocation.x, y: startLocation.y };
             redrawGridStyles();
             
             setTimeout(() => {
