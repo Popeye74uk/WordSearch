@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.3</title>
+    <title>Word Search Generator v7.4</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -48,6 +48,10 @@
         #book-checkbox-options label { user-select: none; cursor: pointer; }
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
+        
+        /* v7.4 Change: Hide puzzle elements by default to prevent flash on load */
+        #grid-wrapper, #word-list-container { visibility: hidden; }
+
         @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, .single-button-container, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
     </style>
 </head>
@@ -132,7 +136,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.3</div>
+        <div id="version-info">v7.4</div>
     </div>
     
     <script>
@@ -151,7 +155,8 @@
               gridSizeSelect = document.getElementById('grid-size-select'), mainControls = document.getElementById('main-controls'),
               initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
-              globalOptionsContainer = document.getElementById('global-options-container');
+              globalOptionsContainer = document.getElementById('global-options-container'),
+              gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container');
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
@@ -292,6 +297,9 @@
                     li.textContent = `${index + 1}) ${word}`;
                     wordListElement.appendChild(li);
                 });
+                // v7.4 Change: Make puzzle visible now that it's ready
+                gridWrapper.style.visibility = 'visible';
+                wordListContainer.style.visibility = 'visible';
             } catch (error) {
                 statusElement.textContent = error.message;
             } finally {
@@ -507,11 +515,10 @@
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => {
                 generatePuzzle();
-            }, 500); 
+            }, 250); // v7.4 Change: Reduced delay
         }
 
-        // --- v7.3 Bug Fix: Changed how the initial puzzle is generated ---
         window.addEventListener('load', () => generatePuzzle(false));
     </script>
 </body>
-</html>
+</html>```
