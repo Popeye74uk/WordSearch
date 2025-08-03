@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.10</title> <!-- v8.10 Change: Title updated -->
+    <title>Word Search Generator v8.11</title> <!-- v8.11 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -18,7 +18,7 @@
         #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; transition: background-color 0.2s; }
         #grid div.revealed { background-color: #ffc107; color: #000; }
         #grid div.selecting { background-color: #d0e8ff; }
-        /* v8.10: Removed .hint-reveal class as styles are now applied inline */
+        #grid div.hint-reveal { background-color: #6f42c1; color: white; }
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
@@ -204,7 +204,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.10</div> <!-- v8.10 Change: Version number incremented -->
+        <div id="version-info">v8.11</div> <!-- v8.11 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -225,6 +225,8 @@
         let selectionEndCell = null;
         let foundWords = new Set();
         let hintedCell = null;
+        // v8.11: New map for efficient style lookups
+        let cellToWordMap = new Map();
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
@@ -351,21 +353,12 @@
 
         function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; }
         
-        function clearHint() {
-            if (hintedCell) {
-                // v8.10: Remove inline styles
-                hintedCell.style.backgroundColor = '';
-                hintedCell.style.color = '';
-                hintedCell = null;
-            }
-        }
-        
         async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
             hideCompletionModal();
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             foundWords.clear();
-            clearHint();
+            hintedCell = null; // Clear hinted cell state
             
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
@@ -382,6 +375,19 @@
                 currentDefinition = puzzleData.definition;
                 currentGridState = puzzleData.grid;
                 placedWordDetails = puzzleData.placedDetails;
+
+                // v8.11: Build the cell-to-word map for efficient lookups
+                cellToWordMap.clear();
+                placedWordDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        const key = `${loc.x},${loc.y}`;
+                        if (!cellToWordMap.has(key)) {
+                            cellToWordMap.set(key, []);
+                        }
+                        cellToWordMap.get(key).push(detail.word);
+                    });
+                });
+
                 const difficulty = document.getElementById('difficulty-select').value;
                 const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
                 statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
@@ -437,23 +443,37 @@
                     cell.dataset.y = y;
                     gridElement.appendChild(cell); 
                 } 
-            } 
+            }
+            redrawGridStyles(); // v8.11: Redraw styles after building the grid
         }
 
-        function revealWords() { 
-            if (placedWordDetails.length === 0) return;
-            clearHint();
-            placedWordDetails.forEach(detail => {
-                if (!foundWords.has(detail.word)) {
-                    foundWords.add(detail.word);
-                    detail.locations.forEach(loc => {
-                        const cell = gridElement.querySelector(`[data-x='${loc.x}'][data-y='${loc.y}']`);
-                        if (cell) cell.classList.add('revealed');
-                    });
-                    const wordListItem = wordListElement.querySelector(`[data-word='${detail.word}']`);
-                    if (wordListItem) wordListItem.classList.add('found');
+        // v8.11: Central function to synchronize grid styles with game state
+        function redrawGridStyles() {
+            const allCells = gridElement.querySelectorAll('div[data-x]');
+            allCells.forEach(cell => {
+                const x = cell.dataset.x;
+                const y = cell.dataset.y;
+                const key = `${x},${y}`;
+                const wordsInCell = cellToWordMap.get(key) || [];
+                
+                const isFound = wordsInCell.some(word => foundWords.has(word));
+                
+                // Reset styles
+                cell.classList.remove('revealed', 'hint-reveal');
+
+                if (isFound) {
+                    cell.classList.add('revealed');
+                } else if (cell === hintedCell) {
+                    cell.classList.add('hint-reveal');
                 }
             });
+        }
+        
+        function revealWords() { 
+            if (placedWordDetails.length === 0) return;
+            placedWordDetails.forEach(detail => foundWords.add(detail.word));
+            hintedCell = null;
+            redrawGridStyles();
             revealBtn.disabled = true;
             document.getElementById('hint-btn').disabled = true;
         }
@@ -729,23 +749,26 @@
             const reversedWord = selectedWord.split('').reverse().join('');
             const foundDetail = placedWordDetails.find(detail => !foundWords.has(detail.word) && (detail.word === selectedWord || detail.word === reversedWord));
 
+            document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
+            
             if (foundDetail) {
                 foundWords.add(foundDetail.word);
-                if (hintedCell && selectedElements.includes(hintedCell)) {
-                    clearHint();
-                }
-                selectedElements.forEach(cell => {
-                    cell.classList.remove('selecting');
-                    cell.classList.add('revealed');
-                });
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
+                
+                if (hintedCell) { // Check if the found word clears the hint
+                    const key = `${hintedCell.dataset.x},${hintedCell.dataset.y}`;
+                    const wordsInHintedCell = cellToWordMap.get(key) || [];
+                    if (wordsInHintedCell.includes(foundDetail.word)) {
+                        hintedCell = null;
+                    }
+                }
+
+                redrawGridStyles(); // Redraw to show the newly found word
 
                 if (foundWords.size === placedWordDetails.length) {
                     showCompletionModal();
                 }
-            } else {
-                document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
             }
             selectionStartCell = null;
             selectionEndCell = null;
@@ -754,7 +777,11 @@
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.disabled = true;
-            clearHint();
+            
+            if (hintedCell) { // If a hint is already active, just re-enable the button
+                setTimeout(() => { hintBtn.disabled = false; }, 1000);
+                return;
+            }
 
             const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
             if (unfoundWords.length === 0) {
@@ -766,10 +793,8 @@
             const cellToHint = gridElement.querySelector(`[data-x='${startLocation.x}'][data-y='${startLocation.y}']`);
 
             if (cellToHint) {
-                // v8.10: Apply styles directly for mobile compatibility
-                cellToHint.style.backgroundColor = '#6f42c1';
-                cellToHint.style.color = 'white';
                 hintedCell = cellToHint;
+                redrawGridStyles();
             }
             
             setTimeout(() => {
