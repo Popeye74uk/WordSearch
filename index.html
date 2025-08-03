@@ -1,11 +1,9 @@
---- START OF FILE index.html ---
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.6</title> <!-- v7.6 Change: Title updated -->
+    <title>Word Search Generator v7.7</title> <!-- v7.7 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -14,10 +12,10 @@
         h1, h2.theme-title, h3 { text-align: center; color: #343a40; }
         h2.theme-title { margin-top: 5px; margin-bottom: 0; font-size: 1.2em; font-weight: normal; }
         p#theme-definition { text-align: center; font-style: italic; color: #6c757d; margin-top: 4px; min-height: 1.2em; max-width: 580px; margin-left: auto; margin-right: auto; }
-        #puzzle-container { display: flex; margin-top: 20px; justify-content: center; overflow-x: auto; -webkit-overflow-scrolling: touch; } /* v7.6 Change: Allow grid to scroll horizontally on small screens */
+        #puzzle-container { display: flex; margin-top: 20px; justify-content: center; } /* v7.7 Change: Removed horizontal scroll */
         #grid-wrapper { position: relative; }
         #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; }
-        #grid div { width: 28px; height: 28px; text-align: center; line-height: 28px; background-color: #fff; text-transform: uppercase; user-select: none; }
+        #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; } /* v7.7 Change: Removed fixed width/height for responsive grid */
         #grid div.revealed { background-color: #ffc107; color: #000; }
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
@@ -31,6 +29,10 @@
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
+        /* v7.7 Start: New group for better mobile layout */
+        .option-group { display: flex; align-items: center; gap: 10px; }
+        .option-group select { flex-shrink: 0; }
+        /* v7.7 End: New group */
         button { padding: 12px 20px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; border: none; border-radius: 5px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
         button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
@@ -55,7 +57,6 @@
 
         @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, .single-button-container, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
     
-        /* v7.6 START: Responsive Design */
         @media (max-width: 768px) {
             .controls-grid, .options-panel-grid, .book-options-grid {
                 grid-template-columns: 1fr;
@@ -66,11 +67,23 @@
             }
             .global-options-container {
                 flex-direction: column;
-                gap: 20px;
-                align-items: stretch;
+                gap: 15px;
+                align-items: center; /* v7.7 Change: Center items */
+                max-width: 415px;
+                margin-left: auto;
+                margin-right: auto;
             }
+            /* v7.7 Start: Improved mobile dropdown layout */
+            .option-group {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .option-group select {
+                padding: 8px;
+                font-size: 0.9em;
+            }
+            /* v7.7 End */
             #words {
-                /* Overrides inline JS style for medium screens */
                 grid-template-columns: repeat(2, 1fr) !important;
                 gap: 0 25px;
             }
@@ -84,7 +97,6 @@
                 font-size: 1.7em;
             }
             #words {
-                /* Overrides inline JS style for small screens */
                 grid-template-columns: 1fr !important;
                 grid-auto-flow: row !important;
             }
@@ -94,8 +106,9 @@
                 gap: 12px;
             }
         }
-        /* v7.6 END: Responsive Design */
     </style>
+    <!-- v7.7: This style tag will be dynamically populated by JavaScript to control grid cell size -->
+    <style id="dynamic-grid-styles"></style>
 </head>
 <body>
 
@@ -119,19 +132,24 @@
             <ul id="words"></ul>
         </div>
         
+        <!-- v7.7: Modified HTML structure for better responsive layout -->
         <div class="global-options-container" id="global-options-container">
-            <label for="grid-size-select"><b>Grid Size:</b></label>
-            <select id="grid-size-select" onchange="handleGlobalOptionChange()">
-                <option value="15">15x15</option>
-                <option value="20" selected>20x20</option>
-                <option value="25">25x25</option>
-            </select>
-            <label for="difficulty-select"><b>Difficulty:</b></label>
-            <select id="difficulty-select" onchange="handleGlobalOptionChange()">
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard" selected>Hard</option>
-            </select>
+            <div class="option-group">
+                <label for="grid-size-select"><b>Grid Size:</b></label>
+                <select id="grid-size-select" onchange="handleGlobalOptionChange()">
+                    <option value="15">15x15</option>
+                    <option value="20" selected>20x20</option>
+                    <option value="25">25x25</option>
+                </select>
+            </div>
+            <div class="option-group">
+                <label for="difficulty-select"><b>Difficulty:</b></label>
+                <select id="difficulty-select" onchange="handleGlobalOptionChange()">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard" selected>Hard</option>
+                </select>
+            </div>
         </div>
 
         <div class="controls-grid" id="main-controls">
@@ -178,7 +196,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.6</div> <!-- v7.6 Change: Version number incremented -->
+        <div id="version-info">v7.7</div> <!-- v7.7 Change: Version number incremented -->
     </div>
     
     <script>
@@ -198,7 +216,8 @@
               initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
               globalOptionsContainer = document.getElementById('global-options-container'),
-              gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container');
+              gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container'),
+              dynamicGridStyles = document.getElementById('dynamic-grid-styles'); // v7.7: Reference to dynamic style tag
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
@@ -352,8 +371,49 @@
             }
         }
 
-        function updateGridDisplay() { gridElement.innerHTML = ''; gridElement.style.gridTemplateColumns = `repeat(${gridSize}, 28px)`; gridElement.style.gridTemplateRows = `repeat(${gridSize}, 28px)`; let numCols = 3; if (wordCount > 15) numCols = 4; if (wordCount <= 10) numCols = 2; wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`; wordListElement.style.gridAutoFlow = 'column'; wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`; for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { const cell = document.createElement('div'); cell.textContent = currentGridState[y][x]; gridElement.appendChild(cell); } } }
-        
+        // v7.7: Heavily modified function for responsive grid
+        function updateGridDisplay() {
+            gridElement.innerHTML = '';
+
+            // --- Responsive Grid Calculation ---
+            const puzzleContainerWidth = document.getElementById('puzzle-container').clientWidth;
+            const maxCellSize = 28; // Max size on large screens
+            const gap = 1; // From CSS
+            let cellSize = Math.floor((puzzleContainerWidth - (gridSize - 1) * gap) / gridSize);
+            cellSize = Math.min(maxCellSize, cellSize);
+            const fontSize = Math.max(8, Math.floor(cellSize * 0.65));
+
+            gridElement.style.gridTemplateColumns = `repeat(${gridSize}, ${cellSize}px)`;
+            gridElement.style.gridTemplateRows = `repeat(${gridSize}, ${cellSize}px)`;
+            
+            // Use the dynamic stylesheet to avoid inline styling every cell
+            dynamicGridStyles.innerHTML = `
+                #grid div {
+                    font-size: ${fontSize}px;
+                    line-height: ${cellSize}px;
+                }
+            `;
+            // --- End of Responsive Calculation ---
+
+            // --- Word List Layout ---
+            let numCols = 3; 
+            if (wordCount > 15) numCols = 4; 
+            if (wordCount <= 10) numCols = 2;
+            // The !important in CSS media queries will override this for mobile
+            wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`;
+            wordListElement.style.gridAutoFlow = 'column';
+            wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`;
+
+            // --- Grid Population ---
+            for (let y=0; y<gridSize; y++) { 
+                for (let x=0; x<gridSize; x++) { 
+                    const cell = document.createElement('div'); 
+                    cell.textContent = currentGridState[y][x]; 
+                    gridElement.appendChild(cell); 
+                } 
+            } 
+        }
+
         function revealWords() { 
             const gridCells = document.querySelectorAll('#grid div'); 
             if (placedWordDetails.length === 0 || gridCells.length === 0) return; 
@@ -577,6 +637,13 @@
         }
 
         window.addEventListener('load', () => generatePuzzle(false));
+        // v7.7: Add a listener to re-calculate grid size on window resize
+        window.addEventListener('resize', () => {
+            if (currentGridState.length > 0) { // Only update if a puzzle exists
+                clearTimeout(debounceTimeout);
+                debounceTimeout = setTimeout(updateGridDisplay, 100);
+            }
+        });
     </script>
 </body>
 </html>
