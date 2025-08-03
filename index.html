@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.4</title> <!-- v8.4 Change: Title updated -->
+    <title>Word Search Generator v8.5</title> <!-- v8.5 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -15,7 +15,7 @@
         #puzzle-container { display: flex; margin-top: 20px; justify-content: center; }
         #grid-wrapper { position: relative; }
         #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; cursor: pointer; }
-        #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; transition: background-color 0.2s; } /* v8.4: Added transition */
+        #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; transition: background-color 0.2s; }
         #grid div.revealed { background-color: #ffc107; color: #000; }
         #grid div.selecting { background-color: #d0e8ff; }
         #grid div.hint-reveal { background-color: #6f42c1; color: white; }
@@ -39,7 +39,7 @@
         #generate-btn { background-color: #007bff; }
         #reveal-btn { background-color: #28a745; }
         #download-pdf-btn { background-color: #6f42c1; }
-        #custom-puzzle-btn { background-color: #20c997; } /* v8.4: New color */
+        #custom-puzzle-btn { background-color: #20c997; }
         #make-book-btn { background-color: #dc3545; }
         #hint-btn { background-color: #fd7e14; }
         #create-book-btn { background-color: #dc3545; }
@@ -196,7 +196,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.4</div> <!-- v8.4 Change: Version number incremented -->
+        <div id="version-info">v8.5</div> <!-- v8.5 Change: Version number incremented -->
     </div>
     
     <script>
@@ -209,6 +209,7 @@
         let selectionStartCell = null;
         let selectionEndCell = null;
         let foundWords = new Set();
+        let hintedCell = null; // v8.5: Track the currently hinted cell
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
@@ -334,10 +335,19 @@
 
         function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; }
         
+        // v8.5: Modified function to clear hint state
+        function clearHint() {
+            if (hintedCell) {
+                hintedCell.classList.remove('hint-reveal');
+                hintedCell = null;
+            }
+        }
+        
         async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             foundWords.clear();
+            clearHint(); // v8.5: Clear hint on new puzzle
             
             if (isFromCustomPanel && customThemeInput.value.trim() === '') {
                 alert("Please enter a Custom Theme to generate a puzzle.");
@@ -411,6 +421,7 @@
 
         function revealWords() { 
             if (placedWordDetails.length === 0) return;
+            clearHint(); // v8.5: Clear hint when revealing all words
             placedWordDetails.forEach(detail => {
                 if (!foundWords.has(detail.word)) {
                     foundWords.add(detail.word);
@@ -630,7 +641,7 @@
             }, 250);
         }
 
-        // --- INTERACTIVE GRID LOGIC (v8.4) ---
+        // --- INTERACTIVE GRID LOGIC (v8.5) ---
         function getCellsOnPath(startCell, endCell) {
             if (!startCell || !endCell) return [];
             
@@ -696,6 +707,10 @@
 
             if (foundDetail) {
                 foundWords.add(foundDetail.word);
+                // v8.5: Check if the found word clears an active hint
+                if (hintedCell && selectedElements.includes(hintedCell)) {
+                    hintedCell = null; // No need to remove class, .revealed will override it
+                }
                 selectedElements.forEach(cell => {
                     cell.classList.remove('selecting');
                     cell.classList.add('revealed');
@@ -709,15 +724,16 @@
             selectionEndCell = null;
         }
 
-        // v8.4: Fixed hint function
+        // v8.5: New persistent hint function
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.disabled = true;
 
+            clearHint(); // Clear any previous hint first
+
             const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
             if (unfoundWords.length === 0) {
-                hintBtn.disabled = true; // All words found, keep it disabled
-                return;
+                return; // All words found, button remains disabled.
             }
 
             const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
@@ -726,13 +742,13 @@
 
             if (cellToHint) {
                 cellToHint.classList.add('hint-reveal');
-                setTimeout(() => {
-                    cellToHint.classList.remove('hint-reveal');
-                    hintBtn.disabled = false;
-                }, 1500);
-            } else {
-                hintBtn.disabled = false;
+                hintedCell = cellToHint; // Store the hinted cell
             }
+            
+            // Re-enable button after a short cooldown
+            setTimeout(() => {
+                hintBtn.disabled = false;
+            }, 1000);
         }
 
         // Mouse Events
