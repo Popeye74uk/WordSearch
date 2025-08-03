@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.0</title> <!-- v8.0 Change: Title updated -->
+    <title>Word Search Generator v8.1</title> <!-- v8.1 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -14,10 +14,10 @@
         p#theme-definition { text-align: center; font-style: italic; color: #6c757d; margin-top: 4px; min-height: 1.2em; max-width: 580px; margin-left: auto; margin-right: auto; }
         #puzzle-container { display: flex; margin-top: 20px; justify-content: center; }
         #grid-wrapper { position: relative; }
-        #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; cursor: pointer; } /* v8.0: Add cursor */
+        #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; cursor: pointer; }
         #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; }
         #grid div.revealed { background-color: #ffc107; color: #000; }
-        #grid div.selecting { background-color: #d0e8ff; } /* v8.0: Style for cells being selected */
+        #grid div.selecting { background-color: #d0e8ff; }
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: #495057; border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
         #loader-time { font-size: 0.9em; font-style: italic; color: #6c757d; }
@@ -26,7 +26,8 @@
         #word-list-container { width: fit-content; margin: 20px auto 0 auto; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
-        #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #343a40; text-align: left; transition: color 0.3s, text-decoration 0.3s; } /* v8.0: Darker font color */
+        #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #343a40; text-align: left; transition: color 0.3s, text-decoration 0.3s; }
+        #words li.found { text-decoration: line-through; color: #adb5bd; } /* v8.1: Class for found words */
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
@@ -191,7 +192,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.0</div> <!-- v8.0 Change: Version number incremented -->
+        <div id="version-info">v8.1</div> <!-- v8.1 Change: Version number incremented -->
     </div>
     
     <script>
@@ -200,9 +201,12 @@
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.0: Variables for interactive selection
+        // v8.1: Enhanced state for interactive selection
         let isSelecting = false;
-        let selectedCells = [];
+        let selectionStartCell = null;
+        let selectionEndCell = null;
+        let selectionDirection = null; // {x: 0, y: 0}
+        let foundWords = new Set();
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
@@ -331,6 +335,7 @@
         async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
+            foundWords.clear(); // v8.1: Clear found words on new puzzle
             
             if (isFromCustomPanel && customThemeInput.value.trim() === '') {
                 alert("Please enter a Custom Theme to generate a puzzle.");
@@ -355,6 +360,7 @@
                 wordsForList.forEach((word, index) => {
                     const li = document.createElement('li');
                     li.textContent = `${index + 1}) ${word}`;
+                    li.dataset.word = word; // v8.1: Add data-word for easy lookup
                     wordListElement.appendChild(li);
                 });
                 gridWrapper.style.visibility = 'visible';
@@ -393,28 +399,28 @@
             for (let y=0; y<gridSize; y++) { 
                 for (let x=0; x<gridSize; x++) { 
                     const cell = document.createElement('div'); 
-                    cell.textContent = currentGridState[y][x]; 
+                    cell.textContent = currentGridState[y][x];
+                    cell.dataset.x = x; // v8.1: Add coords for selection logic
+                    cell.dataset.y = y; // v8.1: Add coords for selection logic
                     gridElement.appendChild(cell); 
                 } 
             } 
         }
 
         function revealWords() { 
-            const gridCells = document.querySelectorAll('#grid div'); 
-            if (placedWordDetails.length === 0 || gridCells.length === 0) return; 
-            
-            placedWordDetails.forEach(detail => detail.locations.forEach(loc => { 
-                const index = loc.y * gridSize + loc.x; 
-                if (gridCells[index]) gridCells[index].classList.add('revealed'); 
-            })); 
-
-            const wordListItems = document.querySelectorAll('#words li');
-            wordListItems.forEach(item => {
-                item.style.textDecoration = 'line-through';
-                item.style.color = '#adb5bd';
+            if (placedWordDetails.length === 0) return;
+            placedWordDetails.forEach(detail => {
+                if (!foundWords.has(detail.word)) {
+                    foundWords.add(detail.word);
+                    detail.locations.forEach(loc => {
+                        const cell = gridElement.querySelector(`[data-x='${loc.x}'][data-y='${loc.y}']`);
+                        if (cell) cell.classList.add('revealed');
+                    });
+                    const wordListItem = wordListElement.querySelector(`[data-word='${detail.word}']`);
+                    if (wordListItem) wordListItem.classList.add('found');
+                }
             });
-
-            revealBtn.disabled = true; 
+            revealBtn.disabled = true;
         }
         
         function downloadPdf() {
@@ -622,43 +628,98 @@
             }, 250);
         }
 
-        // v8.0 START: Interactive Grid Logic (Phase 1)
-        function clearSelection() {
-            selectedCells.forEach(cell => cell.classList.remove('selecting'));
-            selectedCells = [];
+        // v8.1 START: Enhanced Interactive Grid Logic (Phase 2)
+        function clearTemporarySelection() {
+            document.querySelectorAll('#grid div.selecting').forEach(cell => cell.classList.remove('selecting'));
         }
 
         function handleMouseDown(event) {
+            if (event.button !== 0) return; // Only main mouse button
             isSelecting = true;
-            clearSelection();
-            const cell = event.target.closest('div');
+            selectionDirection = null;
+            clearTemporarySelection();
+
+            const cell = event.target.closest('div[data-x]');
             if (cell) {
-                cell.classList.add('selecting');
-                selectedCells.push(cell);
+                selectionStartCell = cell;
+                selectionStartCell.classList.add('selecting');
             }
         }
 
         function handleMouseOver(event) {
-            if (!isSelecting) return;
-            const cell = event.target.closest('div');
-            if (cell && !selectedCells.includes(cell)) {
-                cell.classList.add('selecting');
-                selectedCells.push(cell);
+            if (!isSelecting || !selectionStartCell) return;
+            const currentCell = event.target.closest('div[data-x]');
+            if (!currentCell) return;
+
+            const startX = parseInt(selectionStartCell.dataset.x, 10);
+            const startY = parseInt(selectionStartCell.dataset.y, 10);
+            const currentX = parseInt(currentCell.dataset.x, 10);
+            const currentY = parseInt(currentCell.dataset.y, 10);
+
+            let dx = currentX - startX;
+            let dy = currentY - startY;
+
+            if (selectionDirection) { // Direction is locked, check if current cell is on the line
+                const expectedDx = selectionDirection.x * Math.abs(dx);
+                const expectedDy = selectionDirection.y * Math.abs(dy);
+                 if (selectionDirection.x !== 0 && dx * selectionDirection.x < 0) return; // Moved back over start
+                 if (selectionDirection.y !== 0 && dy * selectionDirection.y < 0) return;
+
+                const isDiagonal = Math.abs(selectionDirection.x) === 1 && Math.abs(selectionDirection.y) === 1;
+                if (isDiagonal && Math.abs(dx) !== Math.abs(dy)) return; // Not on diagonal
+            } else if (dx !== 0 || dy !== 0) { // Lock direction
+                selectionDirection = { x: Math.sign(dx), y: Math.sign(dy) };
+            }
+
+            selectionEndCell = currentCell;
+            clearTemporarySelection();
+
+            // Highlight all cells from start to current end on the line
+            let pathLength = Math.max(Math.abs(dx), Math.abs(dy));
+            for (let i = 0; i <= pathLength; i++) {
+                const cellX = startX + i * selectionDirection.x;
+                const cellY = startY + i * selectionDirection.y;
+                const cellOnPath = gridElement.querySelector(`[data-x='${cellX}'][data-y='${cellY}']`);
+                if (cellOnPath) {
+                    cellOnPath.classList.add('selecting');
+                }
             }
         }
 
         function handleMouseUp() {
+            if (!isSelecting) return;
             isSelecting = false;
-            // In Phase 2, we will check the word here.
-            // For now, just clear the visual selection.
-            setTimeout(clearSelection, 100); // Small delay to see the final selection
-        }
 
+            const selectedElements = Array.from(document.querySelectorAll('#grid div.selecting'));
+            if (selectedElements.length < 2) {
+                clearTemporarySelection();
+                return;
+            }
+
+            const selectedWord = selectedElements.map(cell => cell.textContent).join('');
+            const reversedWord = selectedWord.split('').reverse().join('');
+
+            const foundDetail = placedWordDetails.find(detail => !foundWords.has(detail.word) && (detail.word === selectedWord || detail.word === reversedWord));
+
+            if (foundDetail) {
+                foundWords.add(foundDetail.word);
+                selectedElements.forEach(cell => {
+                    cell.classList.remove('selecting');
+                    cell.classList.add('revealed');
+                });
+                const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
+                if (wordListItem) {
+                    wordListItem.classList.add('found');
+                }
+            } else {
+                clearTemporarySelection();
+            }
+        }
+        
         gridElement.addEventListener('mousedown', handleMouseDown);
         gridElement.addEventListener('mouseover', handleMouseOver);
-        // Add listener to the whole document for mouseup, in case user releases mouse outside the grid
         document.addEventListener('mouseup', handleMouseUp);
-        // v8.0 END
+        // v8.1 END
 
         window.addEventListener('load', () => generatePuzzle(false));
         window.addEventListener('resize', () => {
