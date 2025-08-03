@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.14</title> <!-- v8.14 Change: Title updated -->
+    <title>Word Search Generator v8.15</title> <!-- v8.15 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -15,7 +15,7 @@
         #puzzle-container { display: flex; margin-top: 20px; justify-content: center; }
         #grid-wrapper { position: relative; }
         #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; cursor: pointer; }
-        #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; } /* v8.13: Removed transition for reliability */
+        #grid div { text-align: center; background-color: #fff; text-transform: uppercase; user-select: none; } /* v8.15: Fixed hint feature on mobile */
         #grid div.revealed { background-color: #ffc107; color: #000; }
         #grid div.selecting { background-color: #d0e8ff; }
         #grid div.hint-reveal { background-color: #6f42c1; color: white; }
@@ -204,7 +204,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.13</div> <!-- v8.13 Change: Version number incremented -->
+        <div id="version-info">v8.15</div> <!-- v8.15 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -445,7 +445,7 @@
             redrawGridStyles();
         }
         
-        // v8.13: Central function to synchronize grid styles with game state
+        // v8.15: Central function to synchronize grid styles with game state
         function redrawGridStyles() {
             const allCells = gridElement.querySelectorAll('div[data-x]');
             allCells.forEach(cell => {
@@ -771,14 +771,25 @@
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.disabled = true;
+
+            // --- FIX START ---
+            // By setting isSelecting to false, we prevent handleInteractionEnd from
+            // interfering if a stray touchend event fires right after the button click.
+            const wasSelecting = isSelecting;
+            isSelecting = false;
+            // --- FIX END ---
             
             if (hintedCell) {
-                setTimeout(() => { hintBtn.disabled = false; }, 1000);
+                setTimeout(() => { 
+                    hintBtn.disabled = false; 
+                    isSelecting = wasSelecting; // Restore previous state
+                }, 1000);
                 return;
             }
 
             const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
             if (unfoundWords.length === 0) {
+                isSelecting = wasSelecting; // Restore previous state
                 return;
             }
 
@@ -793,6 +804,7 @@
             
             setTimeout(() => {
                 hintBtn.disabled = false;
+                isSelecting = wasSelecting; // Restore previous state
             }, 1000);
         }
 
