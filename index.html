@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.8</title>
+    <title>Word Search Generator v7.9</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -136,7 +136,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.8</div>
+        <div id="version-info">v7.9</div>
     </div>
     
     <script>
@@ -385,18 +385,18 @@
             }
         }
         
-        function drawTocPage(doc, tocEntries, tocPageNum, includePageNumbers) {
+        // --- v7.9 Rewritten Function ---
+        function drawTocPage(doc, tocEntries, tocPageNum) {
             const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 20;
-            let currentY = margin;
-            doc.setFont('helvetica', 'bold').setFontSize(20).text("Table of Contents", pageW / 2, currentY, { align: 'center' });
-            currentY += 15;
+            doc.setFont('helvetica', 'bold').setFontSize(20).text("Table of Contents", pageW / 2, margin, { align: 'center' });
 
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            const contentStartY = currentY;
+            const contentStartY = margin + 15;
             const lineHeight = 6;
             const numCols = 3;
             const colWidth = (pageW - (margin * 2)) / numCols;
             const entriesPerCol = Math.ceil(tocEntries.length / numCols);
+            const numColsUsed = Math.ceil(tocEntries.length / entriesPerCol);
 
             for (let i = 0; i < tocEntries.length; i++) {
                 const entry = tocEntries[i];
@@ -407,32 +407,41 @@
                 const yPos = contentStartY + (row * lineHeight);
                 
                 const pageNumText = String(entry.page);
-                const prefix = `${entry.puzzleNum}: `;
+                const prefix = entry.isAnswerKey ? 'Answer Key' : `${entry.puzzleNum}: ${entry.text}`;
                 
-                const prefixWidth = doc.getStringUnitWidth(prefix) * doc.getFontSize() / doc.internal.scaleFactor;
                 const pageNumWidth = doc.getStringUnitWidth(pageNumText) * doc.getFontSize() / doc.internal.scaleFactor;
-                const availableWidth = colWidth - prefixWidth - pageNumWidth - 5; 
+                const availableWidth = colWidth - pageNumWidth - 5; 
                 
-                let truncatedText = entry.text;
-                while (doc.getStringUnitWidth(truncatedText) * doc.getFontSize() / doc.internal.scaleFactor > availableWidth) {
-                    truncatedText = truncatedText.slice(0, -1);
-                }
-                const finalText = (truncatedText.length < entry.text.length) ? `${truncatedText}...` : truncatedText;
+                let truncatedText = doc.splitTextToSize(prefix, availableWidth)[0];
 
-                doc.text(prefix + finalText, xPos, yPos);
+                doc.text(truncatedText, xPos, yPos);
                 doc.text(pageNumText, xPos + colWidth - 8, yPos, { align: 'right' });
             }
+
+            doc.setDrawColor(180, 180, 180);
+            const lineYEnd = contentStartY + (entriesPerCol * lineHeight);
+            for (let i = 1; i < numColsUsed; i++) {
+                const lineX = margin + (i * colWidth) - 5;
+                doc.line(lineX, contentStartY - 5, lineX, lineYEnd);
+            }
             
-            if (includePageNumbers && tocPageNum) {
+            if (tocPageNum) {
                 doc.setFont('helvetica', 'normal').setFontSize(8).text(String(tocPageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
             }
         }
         
-        function drawAnswerKey(doc, allPuzzlesData, includePageNumbers, startingPageNum) {
-            let currentPage = startingPageNum;
+        // --- v7.9 Updated Function ---
+        function drawAnswerKey(doc, allPuzzlesData, includePageNumbers, pageDetails) {
+            let currentPage = pageDetails.start;
+            const totalPages = pageDetails.end - pageDetails.start + 1;
+            
             doc.addPage();
             const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
-            doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
+            let headerText = "Answer Key";
+            if (includePageNumbers && totalPages > 1) {
+                headerText += ` (pp. ${pageDetails.start}-${pageDetails.end})`;
+            }
+            doc.setFont('helvetica', 'bold').setFontSize(20).text(headerText, pageW/2, margin, {align:'center'});
             if(includePageNumbers) doc.setFont('helvetica', 'normal').setFontSize(8).text(String(currentPage), pageW / 2, pageH - (margin / 2), { align: 'center' });
 
             const puzzlesPerPage = 6, cols = 2, rows = 3;
@@ -448,7 +457,6 @@
                 const i = index % puzzlesPerPage;
                 const col = i % cols, row = Math.floor(i / cols);
                 const startX = margin + col * cellW, startY = margin + row * cellH;
-                
                 const labelText = `${puzzleNumber}: ${puzzleData.theme}`;
                 
                 doc.setFont('helvetica', 'bold').setFontSize(10).text(labelText, startX + cellW/2, startY + 8, {align:'center'});
@@ -520,31 +528,31 @@
                 loaderTimeElement.textContent = '';
                 await new Promise(resolve => setTimeout(resolve, 50));
 
+                // --- v7.9 Updated Page Calculation Logic ---
                 let currentPage = 1;
+                if (bookTitle) doc.addPage();
+                if (includeToc) doc.addPage();
+
                 let puzzleStartPage = 1;
+                let answerKeyStartPage = puzzleStartPage + puzzleCount;
+                const answerKeyPageCount = includeAnswerKey ? Math.ceil(puzzleCount / 6) : 0;
+                const answerKeyEndPage = answerKeyStartPage + answerKeyPageCount - 1;
 
                 if (bookTitle) {
-                    doc.addPage();
-                    doc.setPage(currentPage);
+                    doc.setPage(currentPage++);
                     const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
-                    doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align: 'center'});
-                    if (bookSubtitle) doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
-                    currentPage++;
-                    puzzleStartPage++;
+                    doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align:'center'});
+                    if (bookSubtitle) doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align:'center'});
                 }
                 
-                let answerKeyStartPage = puzzleStartPage + puzzleCount;
-                
                 if (includeToc) {
-                    doc.addPage();
-                    doc.setPage(currentPage);
+                    doc.setPage(currentPage++);
                     let tocEntries = allPuzzlesData.map((p, i) => ({ puzzleNum: i + 1, text: p.theme, page: puzzleStartPage + i }));
-                    if(includeAnswerKey) tocEntries.push({ puzzleNum: 'Answer Key', text: '', page: answerKeyStartPage });
-                    
-                    drawTocPage(doc, tocEntries, includePageNumbers ? currentPage : null, includePageNumbers);
-                    currentPage++;
-                    puzzleStartPage++;
-                    answerKeyStartPage++;
+                    if (includeAnswerKey) {
+                        const pageRange = answerKeyStartPage === answerKeyEndPage ? answerKeyStartPage : `${answerKeyStartPage}-${answerKeyEndPage}`;
+                        tocEntries.push({ puzzleNum: 'Answer Key', isAnswerKey: true, text: '', page: pageRange });
+                    }
+                    drawTocPage(doc, tocEntries, null); // ToC is never numbered
                 }
 
                 allPuzzlesData.forEach((puzzleData, index) => {
@@ -553,7 +561,8 @@
                 });
                 
                 if (includeAnswerKey && allPuzzlesData.length > 0) {
-                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers, includePageNumbers ? answerKeyStartPage : null);
+                    const pageDetails = { start: answerKeyStartPage, end: answerKeyEndPage };
+                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers, pageDetails);
                 }
 
                 const safeTitle = (bookTitle.replace(/[^a-zA-Z0-9]/g, '-') || `Word-Search-Book-${puzzleCount}-Puzzles`).substring(0, 50);
