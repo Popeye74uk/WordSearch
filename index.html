@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.26</title> <!-- v8.26 Change: Version updated -->
+    <title>Word Search Generator v8.36</title> <!-- v8.36 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -195,9 +195,9 @@
             <div class="option-group">
                 <label for="grid-size-select"><b>Grid Size:</b></label>
                 <select id="grid-size-select" onchange="handleGlobalOptionChange()">
-                    <option value="15">15x15</option>
-                    <option value="20" selected>20x20</option>
-                    <option value="25">25x25</option>
+                    <option value="15">15x15 (10 words)</option>
+                    <option value="20" selected>20x20 (15 words)</option>
+                    <option value="25">25x25 (20 words)</option>
                 </select>
             </div>
             <div class="option-group">
@@ -254,13 +254,12 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.26</div> <!-- v8.26 Change: Version number incremented -->
+        <div id="version-info">v8.36</div> <!-- v8.36 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
         <div class="modal-content">
             <h2>Congratulations!</h2>
-            <!-- v8.26: Redesigned score/time layout -->
             <div id="completion-stats">
                 <div class="stat-column">
                     <p><span class="stat-label">Your Time:</span><span id="your-time" class="stat-value"></span></p>
@@ -282,10 +281,9 @@
     </div>
     
     <script>
-        // v8.26: Updated scoring constants
         const SCORE_POINTS_PER_LETTER = 10;
         const SCORE_HINT_PENALTY = 150;
-        const SCORE_TIME_BONUS_PAR_SECONDS = 300; // 5 minutes
+        const SCORE_TIME_BONUS_PAR_SECONDS = 300;
         const SCORE_POINTS_PER_SECOND_BONUS = 2;
 
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -324,7 +322,6 @@
               completionModal = document.getElementById('completion-modal'),
               wordCounterElement = document.getElementById('word-counter');
         
-        // v8.26: Safer utility to remove non-alphabetic characters
         function sanitizeWord(word) {
             if (typeof word !== 'string') return '';
             return word.replace(/[^a-zA-Z]/g, '');
@@ -333,7 +330,7 @@
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
         async function generatePuzzleData(isFromCustomPanel = false) {
-            updatePuzzleParameters();
+            updatePuzzleParameters(); // This now sets the correct word count
             const customTheme = sanitizeWord(customThemeInput.value.trim());
             const apiMaxResults = 500;
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
@@ -346,7 +343,6 @@
                     if (!response.ok) throw new Error('API Failed');
                     let wordsData = await response.json();
                     wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
-                    // FIX: Reverted the regex to its original state.
                     let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
                     const finalList = [];
@@ -369,7 +365,6 @@
                         if (!response.ok) continue;
                         let wordsData = await response.json();
                         wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
-                        // FIX: Reverted the regex to its original state.
                         let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             const finalList = [];
@@ -526,9 +521,9 @@
             
             dynamicGridStyles.innerHTML = `#grid div { font-size: ${fontSize}px; line-height: ${cellSize}px; }`;
             
-            let numCols = 3; 
-            if (wordCount > 15) numCols = 4; 
-            if (wordCount <= 10) numCols = 2;
+            let numCols = 3;
+            if (gridSize === 25) numCols = 4;
+            if (gridSize === 15) numCols = 2;
             wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`;
             wordListElement.style.gridAutoFlow = 'column';
             wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`;
@@ -605,9 +600,23 @@
             }
         }
         
+        // v8.36: Implemented specific word counts for each grid size.
         function updatePuzzleParameters() {
             gridSize = parseInt(gridSizeSelect.value, 10);
-            wordCount = Math.floor(gridSize * 0.85);
+            
+            switch(gridSize) {
+                case 15:
+                    wordCount = 10;
+                    break;
+                case 20:
+                    wordCount = 15;
+                    break;
+                case 25:
+                    wordCount = 20;
+                    break;
+                default: // Fallback for any unexpected grid size
+                    wordCount = 15; 
+            }
         }
 
         function handleGlobalOptionChange() {
@@ -746,7 +755,6 @@
             }, 1000);
         }
 
-        // v8.26: Completion logic and UI update
         function formatTime(milliseconds) {
             if (milliseconds === null || isNaN(milliseconds)) return "--:--";
             const totalSeconds = Math.floor(milliseconds / 1000);
@@ -770,7 +778,6 @@
             const difficultyBonus = Math.round(baseScore * difficultyMultiplier);
             const finalScore = baseScore + difficultyBonus + timeBonus - hintPenalty;
 
-            // Time records
             const bestTime = localStorage.getItem(puzzleConfigKey_time);
             let isNewBestTime = false;
             if (bestTime === null || elapsedTime < parseInt(bestTime, 10)) {
@@ -779,7 +786,6 @@
             }
             const updatedBestTime = localStorage.getItem(puzzleConfigKey_time);
 
-            // Score records
             const bestScore = localStorage.getItem(puzzleConfigKey_score);
             let isNewBestScore = false;
             if (bestScore === null || finalScore > parseInt(bestScore, 10)) {
@@ -788,7 +794,6 @@
             }
             const updatedBestScore = localStorage.getItem(puzzleConfigKey_score);
 
-            // Update modal UI
             document.getElementById('your-time').textContent = formatTime(elapsedTime);
             document.getElementById('best-time').textContent = formatTime(parseInt(updatedBestTime, 10));
             document.getElementById('new-best-time').textContent = isNewBestTime ? 'New Best Time!' : '';
@@ -842,7 +847,6 @@
             setTheme('light');
         }
         
-        // Hint keyboard shortcut
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'h' && !e.target.matches('input')) {
                 const hintBtn = document.getElementById('hint-btn');
@@ -852,7 +856,6 @@
             }
         });
 
-        // Mouse Events
         gridElement.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             handleInteractionStart(e.target.closest('div[data-x]'));
@@ -862,7 +865,6 @@
             if (e.button === 0) handleInteractionEnd();
         });
 
-        // Touch Events
         gridElement.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
@@ -888,16 +890,9 @@
             }
         });
         
-        // --- PDF & BOOK GENERATION (Dummy functions if not fully implemented) ---
-        function downloadPdf() {
-            alert('PDF generation is a complex feature. This button is a placeholder!');
-        }
-        function downloadBook() {
-            alert('Book generation is a complex feature. This button is a placeholder!');
-        }
-        function cancelBookGeneration() {
-            isGeneratingBook = false;
-        }
+        function downloadPdf() { alert('PDF generation is a placeholder.'); }
+        function downloadBook() { alert('Book generation is a placeholder.'); }
+        function cancelBookGeneration() { isGeneratingBook = false; }
 
     </script>
 </body>
