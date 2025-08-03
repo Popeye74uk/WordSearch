@@ -34,11 +34,11 @@
         #generate-btn { background-color: #007bff; }
         #reveal-btn { background-color: #28a745; }
         #download-pdf-btn { background-color: #6f42c1; }
-        #options-btn { background-color: #17a2b8; }
+        #custom-puzzle-btn { background-color: #17a2b8; }
         #make-book-btn { background-color: #fd7e14; }
         #create-book-btn { background-color: #dc3545; }
         #generate-custom-btn { background-color: #007bff; }
-        #cancel-btn, #cancel-book-options-btn, #cancel-options-btn { background-color: #6c757d; }
+        #cancel-btn, #cancel-book-options-btn, #cancel-custom-btn { background-color: #6c757d; }
         #cancel-btn { min-width: 120px; width: auto; }
         #advanced-options-panel, #generate-book-controls { display: none; }
         .options-panel-grid, .book-options-grid { display: grid; grid-template-columns: auto 1fr; justify-content: center; align-items: center; gap: 10px 15px; margin: 15px auto 0 auto; max-width: 415px; }
@@ -74,14 +74,14 @@
         <div class="controls-grid" id="main-controls">
             <button id="generate-btn" onclick="generatePuzzle()">New Puzzle</button>
             <button id="reveal-btn" onclick="revealWords()">Reveal Words</button>
-            <button id="options-btn" onclick="showOptions()">Options</button>
+            <button id="custom-puzzle-btn" onclick="showCustomOptions()">Custom Puzzle</button>
             <button id="download-pdf-btn" onclick="downloadPdf()">Download as PDF</button>
         </div>
         <div class="single-button-container" id="initial-book-controls">
             <button id="make-book-btn" onclick="showBookOptions()">Make Book</button>
         </div>
         <div id="advanced-options-panel">
-            <h3>Options</h3>
+            <h3>Custom Puzzle</h3>
             <div class="options-panel-grid">
                 <label for="grid-size-select">Grid Size:</label>
                 <select id="grid-size-select">
@@ -96,11 +96,11 @@
                     <option value="hard" selected>Hard</option>
                 </select>
                 <label for="custom-theme-input">Custom Theme:</label>
-                <input type="text" id="custom-theme-input" placeholder="Optional (for custom puzzles)">
+                <input type="text" id="custom-theme-input" placeholder="Optional">
             </div>
             <div class="controls-grid">
-                <button id="generate-custom-btn" onclick="generatePuzzle(true)">Generate Custom</button>
-                <button id="cancel-options-btn" onclick="hideOptions()">Cancel</button>
+                <button id="generate-custom-btn" onclick="generatePuzzle(true)">Generate</button>
+                <button id="cancel-custom-btn" onclick="hideCustomOptions()">Cancel</button>
             </div>
         </div>
         <div id="generate-book-controls">
@@ -127,7 +127,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v6.7</div>
+        <div id="version-info">v6.8</div>
     </div>
     
     <script>
@@ -148,11 +148,15 @@
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
-        async function generatePuzzleData(isCustom = false) {
+        async function generatePuzzleData(isCustomPanel = false) {
             updatePuzzleParameters();
             const customTheme = customThemeInput.value.trim();
             const apiMaxResults = 500;
-            if (isCustom && customTheme) {
+            
+            // The logic hinges on whether a custom theme was actually provided.
+            const hasCustomTheme = isCustomPanel && customTheme !== '';
+            
+            if (hasCustomTheme) {
                 if (PROFANITY_SET.has(customTheme.toLowerCase())) throw new Error(`Theme '${customTheme}' is not permitted.`);
                 loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
                 try {
@@ -208,31 +212,19 @@
             }
         }
 
-        // --- v6.7 Change: This function is now difficulty-aware ---
         function placeWordsOnGrid(words) {
             const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
             const placedDetails = [];
-            
             const difficulty = document.getElementById('difficulty-select').value;
-            
             const directions_hard = [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:-1,y:1},{x:-1,y:0},{x:-1,y:-1},{x:0,y:-1},{x:1,y:-1}];
-            const directions_medium = [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:-1,y:1}]; // Right, Down, Down-Right, Down-Left
-            const directions_easy = [{x:1,y:0},{x:0,y:1}]; // Right, Down
-
+            const directions_medium = [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:-1,y:1}];
+            const directions_easy = [{x:1,y:0},{x:0,y:1}];
             let directions;
             switch(difficulty) {
-                case 'easy':
-                    directions = directions_easy;
-                    break;
-                case 'medium':
-                    directions = directions_medium;
-                    break;
-                case 'hard':
-                default:
-                    directions = directions_hard;
-                    break;
+                case 'easy': directions = directions_easy; break;
+                case 'medium': directions = directions_medium; break;
+                default: directions = directions_hard; break;
             }
-
             for (const word of words) {
                 const upperWord = word.toUpperCase();
                 let placed = false, attempts = 0;
@@ -260,33 +252,25 @@
                     attempts++;
                 }
             }
-            for (let y=0; y<gridSize; y++) {
-                for (let x=0; x<gridSize; x++) {
-                    if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
-                }
-            }
+            for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; } }
             return { grid, placedDetails };
         }
 
         function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; }
         
-        async function generatePuzzle(isCustom = false) {
+        // --- v6.8 Change: `isCustom` is now `isFromCustomPanel` ---
+        async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
-            // If generating a custom puzzle, but no theme is provided, alert user.
-            if (isCustom && customThemeInput.value.trim() === '') {
-                alert("Please enter a Custom Theme to generate a custom puzzle.");
-                setUiLoading(false);
-                return;
-            }
+            
             try {
-                const puzzleData = await generatePuzzleData(isCustom);
+                const puzzleData = await generatePuzzleData(isFromCustomPanel);
                 currentTheme = puzzleData.theme;
                 currentDefinition = puzzleData.definition;
                 currentGridState = puzzleData.grid;
                 placedWordDetails = puzzleData.placedDetails;
                 const difficulty = document.getElementById('difficulty-select').value;
-                const statusThemeType = isCustom && customThemeInput.value.trim() ? 'Custom' : 'Random';
+                const statusThemeType = (isFromCustomPanel && customThemeInput.value.trim() !== '') ? 'Custom' : 'Random';
                 statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
                 themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
@@ -302,7 +286,7 @@
                 statusElement.textContent = error.message;
             } finally {
                 setUiLoading(false);
-                if (isCustom) hideOptions();
+                if (isFromCustomPanel) hideCustomOptions();
             }
         }
 
@@ -420,9 +404,8 @@
             });
         }
 
-        // --- v6.7 UI Functions ---
-        function showOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; }
-        function hideOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; }
+        function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; }
+        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; }
         function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; }
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; }
 
@@ -471,7 +454,7 @@
                     loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
                     
                     updatePuzzleParameters();
-                    const puzzleData = await generatePuzzleData();
+                    const puzzleData = await generatePuzzleData(false); // Always generate random for book
                     if (includeAnswerKey) {
                         allPuzzlesData.push(puzzleData);
                     }
