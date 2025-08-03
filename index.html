@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.2</title>
+    <title>Word Search Generator v7.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -132,7 +132,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.2</div>
+        <div id="version-info">v7.3</div>
     </div>
     
     <script>
@@ -417,7 +417,6 @@
             });
         }
 
-        // --- v7.2 UI Functions Updated ---
         function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
         function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
@@ -511,7 +510,8 @@
             }, 500); 
         }
 
-        window.addEventListener('load', generatePuzzle);
+        // --- v7.3 Bug Fix: Changed how the initial puzzle is generated ---
+        window.addEventListener('load', () => generatePuzzle(false));
     </script>
 </body>
 </html>
