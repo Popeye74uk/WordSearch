@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator</title>
+    <title>Word Search Generator v7.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -75,13 +75,13 @@
         
         <div class="global-options-container">
             <label for="grid-size-select"><b>Grid Size:</b></label>
-            <select id="grid-size-select">
+            <select id="grid-size-select" onchange="handleGlobalOptionChange()">
                 <option value="15">15x15</option>
                 <option value="20" selected>20x20</option>
                 <option value="25">25x25</option>
             </select>
             <label for="difficulty-select"><b>Difficulty:</b></label>
-            <select id="difficulty-select">
+            <select id="difficulty-select" onchange="handleGlobalOptionChange()">
                 <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard" selected>Hard</option>
@@ -132,13 +132,14 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.0</div>
+        <div id="version-info">v7.1</div>
     </div>
     
     <script>
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
+        let debounceTimeout; // v7.1 For auto-generation
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
@@ -265,7 +266,6 @@
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             
-            // If the custom panel was used but no theme was entered, it will now correctly generate a random puzzle with the chosen global settings.
             if (isFromCustomPanel && customThemeInput.value.trim() === '') {
                 isFromCustomPanel = false;
             }
@@ -497,6 +497,14 @@
         function cancelBookGeneration() { isGeneratingBook = false; }
         function updatePuzzleParameters() { gridSize = parseInt(gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
         
+        // --- v7.1 New Function for Auto-Generation ---
+        function handleGlobalOptionChange() {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                generatePuzzle();
+            }, 500); // Wait 500ms after the last change before generating
+        }
+
         window.addEventListener('load', generatePuzzle);
     </script>
 </body>
