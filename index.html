@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.6</title> <!-- v8.6 Change: Title updated -->
+    <title>Word Search Generator v8.7</title> <!-- v8.7 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -38,10 +38,10 @@
         button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
         #generate-btn { background-color: #007bff; }
         #reveal-btn { background-color: #28a745; }
-        #download-pdf-btn { background-color: #6f42c1; }
-        #custom-puzzle-btn { background-color: #fd7e14; } /* v8.6: New color */
+        #download-pdf-btn { background-color: #4B0082; } /* v8.7: New color */
+        #custom-puzzle-btn { background-color: #fd7e14; }
         #make-book-btn { background-color: #dc3545; }
-        #hint-btn { background-color: #6f42c1; } /* v8.6: New color */
+        #hint-btn { background-color: #6f42c1; }
         #create-book-btn { background-color: #dc3545; }
         #generate-custom-btn { background-color: #007bff; }
         #cancel-btn, #cancel-book-options-btn, #cancel-custom-btn { background-color: #6c757d; }
@@ -54,6 +54,14 @@
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
         
+        /* v8.7: Styles for completion modal */
+        #completion-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
+        #completion-modal.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background-color: white; padding: 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
+        #completion-modal.visible .modal-content { transform: scale(1); }
+        .modal-content h2 { font-size: 2.5em; margin-top: 0; margin-bottom: 20px; color: #28a745; }
+        .modal-content button { min-width: 150px; background-color: #007bff; }
+
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
         @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
@@ -107,6 +115,7 @@
                 align-items: flex-start;
                 gap: 12px;
             }
+            .modal-content h2 { font-size: 2em; }
         }
     </style>
     <style id="dynamic-grid-styles"></style>
@@ -196,7 +205,15 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.6</div> <!-- v8.6 Change: Version number incremented -->
+        <div id="version-info">v8.7</div> <!-- v8.7 Change: Version number incremented -->
+    </div>
+
+    <!-- v8.7: New HTML for completion modal -->
+    <div id="completion-modal" onclick="hideCompletionModal()">
+        <div class="modal-content">
+            <h2>Congratulations!</h2>
+            <button onclick="generatePuzzle()">Play Again?</button>
+        </div>
     </div>
     
     <script>
@@ -223,7 +240,8 @@
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
               globalOptionsContainer = document.getElementById('global-options-container'),
               gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container'),
-              dynamicGridStyles = document.getElementById('dynamic-grid-styles');
+              dynamicGridStyles = document.getElementById('dynamic-grid-styles'),
+              completionModal = document.getElementById('completion-modal'); // v8.7: Modal reference
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
@@ -344,11 +362,11 @@
         
         async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
+            hideCompletionModal(); // v8.7: Hide modal if open
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             foundWords.clear();
             clearHint();
             
-            // v8.6: Re-enable buttons for the new puzzle
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
 
@@ -437,7 +455,7 @@
                 }
             });
             revealBtn.disabled = true;
-            document.getElementById('hint-btn').disabled = true; // v8.6 Also disable hint btn
+            document.getElementById('hint-btn').disabled = true;
         }
         
         function downloadPdf() {
@@ -477,7 +495,7 @@
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedWordDetails.map(p => p.word).sort();
+            const wordsForList = placedDetails.map(p => p.word).sort();
             const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
             const wordsPerCol = Math.ceil(currentWordCount / numCols);
             const colWidths = Array(numCols).fill(0);
@@ -645,7 +663,7 @@
             }, 250);
         }
 
-        // --- INTERACTIVE GRID LOGIC (v8.6) ---
+        // --- INTERACTIVE GRID LOGIC ---
         function getCellsOnPath(startCell, endCell) {
             if (!startCell || !endCell) return [];
             
@@ -723,13 +741,8 @@
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
 
-                // v8.6: Completion check
                 if (foundWords.size === placedWordDetails.length) {
-                    setTimeout(() => {
-                        alert("Congratulations! You've found all the words!");
-                        document.getElementById('hint-btn').disabled = true;
-                        document.getElementById('reveal-btn').disabled = true;
-                    }, 100);
+                    showCompletionModal();
                 }
             } else {
                 document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
@@ -760,6 +773,16 @@
             setTimeout(() => {
                 hintBtn.disabled = false;
             }, 1000);
+        }
+
+        // v8.7: New modal functions
+        function showCompletionModal() {
+            completionModal.classList.add('visible');
+            document.getElementById('hint-btn').disabled = true;
+            document.getElementById('reveal-btn').disabled = true;
+        }
+        function hideCompletionModal() {
+            completionModal.classList.remove('visible');
         }
 
         // Mouse Events
