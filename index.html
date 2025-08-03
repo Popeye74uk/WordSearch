@@ -1,9 +1,11 @@
+--- START OF FILE index.html ---
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.5</title> <!-- v7.5 Change: Title updated -->
+    <title>Word Search Generator v7.6</title> <!-- v7.6 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -12,7 +14,7 @@
         h1, h2.theme-title, h3 { text-align: center; color: #343a40; }
         h2.theme-title { margin-top: 5px; margin-bottom: 0; font-size: 1.2em; font-weight: normal; }
         p#theme-definition { text-align: center; font-style: italic; color: #6c757d; margin-top: 4px; min-height: 1.2em; max-width: 580px; margin-left: auto; margin-right: auto; }
-        #puzzle-container { display: flex; margin-top: 20px; justify-content: center; }
+        #puzzle-container { display: flex; margin-top: 20px; justify-content: center; overflow-x: auto; -webkit-overflow-scrolling: touch; } /* v7.6 Change: Allow grid to scroll horizontally on small screens */
         #grid-wrapper { position: relative; }
         #grid { display: grid; gap: 1px; background-color: #adb5bd; border: 1px solid #adb5bd; font-family: "Courier New", Courier, monospace; font-weight: bold; }
         #grid div { width: 28px; height: 28px; text-align: center; line-height: 28px; background-color: #fff; text-transform: uppercase; user-select: none; }
@@ -25,7 +27,7 @@
         #word-list-container { width: fit-content; margin: 20px auto 0 auto; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
-        #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; transition: color 0.3s, text-decoration 0.3s; } /* v7.5 Change: Added transition */
+        #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; transition: color 0.3s, text-decoration 0.3s; }
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
@@ -52,6 +54,47 @@
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
         @media print { @page { size: A4; margin: 0.5in; } body { background-color: #fff; font-size: 12pt; margin: 0; padding: 0; } .container { width: 100%; margin: 0; padding: 0; box-shadow: none; } h1, .global-options-container, .controls-grid, .single-button-container, #advanced-options-panel, #generate-book-controls, #status-container, #version-info { display: none; } #grid-wrapper { border: 2px solid #333; border-radius: 10px; padding: 10px; } #grid { border: none; } #word-list-container { margin-top: 15px; } }
+    
+        /* v7.6 START: Responsive Design */
+        @media (max-width: 768px) {
+            .controls-grid, .options-panel-grid, .book-options-grid {
+                grid-template-columns: 1fr;
+            }
+            .options-panel-grid label, .book-options-grid label {
+                text-align: left;
+                margin-left: 5px;
+            }
+            .global-options-container {
+                flex-direction: column;
+                gap: 20px;
+                align-items: stretch;
+            }
+            #words {
+                /* Overrides inline JS style for medium screens */
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0 25px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 1.7em;
+            }
+            #words {
+                /* Overrides inline JS style for small screens */
+                grid-template-columns: 1fr !important;
+                grid-auto-flow: row !important;
+            }
+            #book-checkbox-options {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+        /* v7.6 END: Responsive Design */
     </style>
 </head>
 <body>
@@ -135,7 +178,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.5</div> <!-- v7.5 Change: Version number incremented -->
+        <div id="version-info">v7.6</div> <!-- v7.6 Change: Version number incremented -->
     </div>
     
     <script>
@@ -311,7 +354,6 @@
 
         function updateGridDisplay() { gridElement.innerHTML = ''; gridElement.style.gridTemplateColumns = `repeat(${gridSize}, 28px)`; gridElement.style.gridTemplateRows = `repeat(${gridSize}, 28px)`; let numCols = 3; if (wordCount > 15) numCols = 4; if (wordCount <= 10) numCols = 2; wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`; wordListElement.style.gridAutoFlow = 'column'; wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`; for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { const cell = document.createElement('div'); cell.textContent = currentGridState[y][x]; gridElement.appendChild(cell); } } }
         
-        // v7.5 START: Modified revealWords function
         function revealWords() { 
             const gridCells = document.querySelectorAll('#grid div'); 
             if (placedWordDetails.length === 0 || gridCells.length === 0) return; 
@@ -321,7 +363,6 @@
                 if (gridCells[index]) gridCells[index].classList.add('revealed'); 
             })); 
 
-            // v7.5 Added feature: Style the word list on reveal
             const wordListItems = document.querySelectorAll('#words li');
             wordListItems.forEach(item => {
                 item.style.textDecoration = 'line-through';
@@ -330,7 +371,6 @@
 
             revealBtn.disabled = true; 
         }
-        // v7.5 END: Modified revealWords function
         
         function downloadPdf() {
             if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
