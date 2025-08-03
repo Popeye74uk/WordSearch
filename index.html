@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.1</title> <!-- v8.1 Change: Title updated -->
+    <title>Word Search Generator v8.2</title> <!-- v8.2 Change: Title updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -27,7 +27,7 @@
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #343a40; text-align: left; transition: color 0.3s, text-decoration 0.3s; }
-        #words li.found { text-decoration: line-through; color: #adb5bd; } /* v8.1: Class for found words */
+        #words li.found { text-decoration: line-through; color: #adb5bd; }
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
@@ -192,7 +192,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.1</div> <!-- v8.1 Change: Version number incremented -->
+        <div id="version-info">v8.2</div> <!-- v8.2 Change: Version number incremented -->
     </div>
     
     <script>
@@ -201,11 +201,10 @@
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.1: Enhanced state for interactive selection
+        // v8.2: Interactive selection state
         let isSelecting = false;
         let selectionStartCell = null;
         let selectionEndCell = null;
-        let selectionDirection = null; // {x: 0, y: 0}
         let foundWords = new Set();
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
@@ -335,7 +334,7 @@
         async function generatePuzzle(isFromCustomPanel = false) {
             setUiLoading(true);
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
-            foundWords.clear(); // v8.1: Clear found words on new puzzle
+            foundWords.clear();
             
             if (isFromCustomPanel && customThemeInput.value.trim() === '') {
                 alert("Please enter a Custom Theme to generate a puzzle.");
@@ -360,7 +359,7 @@
                 wordsForList.forEach((word, index) => {
                     const li = document.createElement('li');
                     li.textContent = `${index + 1}) ${word}`;
-                    li.dataset.word = word; // v8.1: Add data-word for easy lookup
+                    li.dataset.word = word;
                     wordListElement.appendChild(li);
                 });
                 gridWrapper.style.visibility = 'visible';
@@ -400,8 +399,8 @@
                 for (let x=0; x<gridSize; x++) { 
                     const cell = document.createElement('div'); 
                     cell.textContent = currentGridState[y][x];
-                    cell.dataset.x = x; // v8.1: Add coords for selection logic
-                    cell.dataset.y = y; // v8.1: Add coords for selection logic
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
                     gridElement.appendChild(cell); 
                 } 
             } 
@@ -628,77 +627,68 @@
             }, 250);
         }
 
-        // v8.1 START: Enhanced Interactive Grid Logic (Phase 2)
-        function clearTemporarySelection() {
-            document.querySelectorAll('#grid div.selecting').forEach(cell => cell.classList.remove('selecting'));
-        }
+        // v8.2 START: Complete Interactive Grid Logic (Mouse & Touch)
+        function getCellsOnPath(startCell, endCell) {
+            if (!startCell || !endCell) return [];
+            
+            const startX = parseInt(startCell.dataset.x, 10);
+            const startY = parseInt(startCell.dataset.y, 10);
+            const endX = parseInt(endCell.dataset.x, 10);
+            const endY = parseInt(endCell.dataset.y, 10);
 
-        function handleMouseDown(event) {
-            if (event.button !== 0) return; // Only main mouse button
-            isSelecting = true;
-            selectionDirection = null;
-            clearTemporarySelection();
-
-            const cell = event.target.closest('div[data-x]');
-            if (cell) {
-                selectionStartCell = cell;
-                selectionStartCell.classList.add('selecting');
-            }
-        }
-
-        function handleMouseOver(event) {
-            if (!isSelecting || !selectionStartCell) return;
-            const currentCell = event.target.closest('div[data-x]');
-            if (!currentCell) return;
-
-            const startX = parseInt(selectionStartCell.dataset.x, 10);
-            const startY = parseInt(selectionStartCell.dataset.y, 10);
-            const currentX = parseInt(currentCell.dataset.x, 10);
-            const currentY = parseInt(currentCell.dataset.y, 10);
-
-            let dx = currentX - startX;
-            let dy = currentY - startY;
-
-            if (selectionDirection) { // Direction is locked, check if current cell is on the line
-                const expectedDx = selectionDirection.x * Math.abs(dx);
-                const expectedDy = selectionDirection.y * Math.abs(dy);
-                 if (selectionDirection.x !== 0 && dx * selectionDirection.x < 0) return; // Moved back over start
-                 if (selectionDirection.y !== 0 && dy * selectionDirection.y < 0) return;
-
-                const isDiagonal = Math.abs(selectionDirection.x) === 1 && Math.abs(selectionDirection.y) === 1;
-                if (isDiagonal && Math.abs(dx) !== Math.abs(dy)) return; // Not on diagonal
-            } else if (dx !== 0 || dy !== 0) { // Lock direction
-                selectionDirection = { x: Math.sign(dx), y: Math.sign(dy) };
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const cells = [];
+            
+            let dir = {x: 0, y: 0};
+            if (Math.abs(dx) === Math.abs(dy)) { // Diagonal
+                dir = { x: Math.sign(dx), y: Math.sign(dy) };
+            } else if (Math.abs(dx) > Math.abs(dy)) { // Horizontal
+                dir = { x: Math.sign(dx), y: 0 };
+            } else { // Vertical
+                dir = { x: 0, y: Math.sign(dy) };
             }
 
-            selectionEndCell = currentCell;
-            clearTemporarySelection();
+            const pathLength = (dir.x !== 0 && dir.y !== 0) ? Math.abs(dx) : Math.max(Math.abs(dx), Math.abs(dy));
 
-            // Highlight all cells from start to current end on the line
-            let pathLength = Math.max(Math.abs(dx), Math.abs(dy));
             for (let i = 0; i <= pathLength; i++) {
-                const cellX = startX + i * selectionDirection.x;
-                const cellY = startY + i * selectionDirection.y;
-                const cellOnPath = gridElement.querySelector(`[data-x='${cellX}'][data-y='${cellY}']`);
-                if (cellOnPath) {
-                    cellOnPath.classList.add('selecting');
-                }
+                const x = startX + i * dir.x;
+                const y = startY + i * dir.y;
+                const cell = gridElement.querySelector(`[data-x='${x}'][data-y='${y}']`);
+                if (cell) cells.push(cell);
             }
+            return cells;
         }
 
-        function handleMouseUp() {
+        function handleInteractionStart(targetCell) {
+            if (!targetCell) return;
+            isSelecting = true;
+            document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
+            selectionStartCell = targetCell;
+            selectionStartCell.classList.add('selecting');
+        }
+        
+        function handleInteractionMove(targetCell) {
+            if (!isSelecting || !selectionStartCell || !targetCell) return;
+            selectionEndCell = targetCell;
+            
+            document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
+            const pathCells = getCellsOnPath(selectionStartCell, selectionEndCell);
+            pathCells.forEach(c => c.classList.add('selecting'));
+        }
+
+        function handleInteractionEnd() {
             if (!isSelecting) return;
             isSelecting = false;
 
-            const selectedElements = Array.from(document.querySelectorAll('#grid div.selecting'));
+            const selectedElements = getCellsOnPath(selectionStartCell, selectionEndCell);
             if (selectedElements.length < 2) {
-                clearTemporarySelection();
+                document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
                 return;
             }
 
             const selectedWord = selectedElements.map(cell => cell.textContent).join('');
             const reversedWord = selectedWord.split('').reverse().join('');
-
             const foundDetail = placedWordDetails.find(detail => !foundWords.has(detail.word) && (detail.word === selectedWord || detail.word === reversedWord));
 
             if (foundDetail) {
@@ -708,18 +698,42 @@
                     cell.classList.add('revealed');
                 });
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
-                if (wordListItem) {
-                    wordListItem.classList.add('found');
-                }
+                if (wordListItem) wordListItem.classList.add('found');
             } else {
-                clearTemporarySelection();
+                document.querySelectorAll('#grid div.selecting').forEach(c => c.classList.remove('selecting'));
             }
+            selectionStartCell = null;
+            selectionEndCell = null;
         }
+
+        // Mouse Events
+        gridElement.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            handleInteractionStart(e.target.closest('div[data-x]'));
+        });
+        gridElement.addEventListener('mouseover', (e) => handleInteractionMove(e.target.closest('div[data-x]')));
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 0) handleInteractionEnd();
+        });
+
+        // Touch Events
+        gridElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
+            handleInteractionStart(targetCell ? targetCell.closest('div[data-x]') : null);
+        }, { passive: false });
+
+        gridElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
+            handleInteractionMove(targetCell ? targetCell.closest('div[data-x]') : null);
+        }, { passive: false });
         
-        gridElement.addEventListener('mousedown', handleMouseDown);
-        gridElement.addEventListener('mouseover', handleMouseOver);
-        document.addEventListener('mouseup', handleMouseUp);
-        // v8.1 END
+        gridElement.addEventListener('touchend', handleInteractionEnd);
+        gridElement.addEventListener('touchcancel', handleInteractionEnd);
+        // v8.2 END
 
         window.addEventListener('load', () => generatePuzzle(false));
         window.addEventListener('resize', () => {
