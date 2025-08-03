@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.5</title>
+    <title>Word Search Generator v7.6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -26,7 +26,7 @@
         #word-list-container h3 { text-align: center; margin-top: 0; color: #495057; }
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: #495057; text-align: left; }
-        #words li.word-found { text-decoration: line-through; color: #888; } /* v7.5 Style */
+        #words li.word-found { text-decoration: line-through; color: #888; }
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 415px; margin: 25px auto 0 auto; }
         .single-button-container { max-width: 415px; margin: 15px auto 0 auto; }
         .global-options-container { display: flex; justify-content: center; align-items: center; gap: 10px 25px; margin-top: 25px; margin-bottom: -10px; font-size: 1em; color: #495057; }
@@ -47,6 +47,7 @@
         .options-panel-grid label, .book-options-grid label { text-align: right; }
         #book-checkbox-options { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: flex-start; }
         #book-checkbox-options label { user-select: none; cursor: pointer; }
+        #book-checkbox-options label.disabled { color: #6c757d; cursor: not-allowed; } /* v7.6 Style */
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: #6c757d; }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: #adb5bd; }
         #grid-wrapper, #word-list-container { visibility: hidden; }
@@ -125,8 +126,8 @@
                 <label>Options:</label>
                 <div id="book-checkbox-options">
                     <label for="answer-key-checkbox"><input type="checkbox" id="answer-key-checkbox" checked> Answer Key</label>
-                    <label for="page-numbers-checkbox"><input type="checkbox" id="page-numbers-checkbox" checked> Page Numbers</label>
-                    <label for="toc-checkbox"><input type="checkbox" id="toc-checkbox" checked> Table of Contents</label>
+                    <label for="page-numbers-checkbox"><input type="checkbox" id="page-numbers-checkbox" checked onchange="toggleTocOption()"> Page Numbers</label>
+                    <label id="toc-label" for="toc-checkbox"><input type="checkbox" id="toc-checkbox" checked> Table of Contents</label>
                 </div>
             </div>
             <div class="controls-grid">
@@ -135,7 +136,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.5</div>
+        <div id="version-info">v7.6</div>
     </div>
     
     <script>
@@ -311,7 +312,6 @@
 
         function updateGridDisplay() { gridElement.innerHTML = ''; gridElement.style.gridTemplateColumns = `repeat(${gridSize}, 28px)`; gridElement.style.gridTemplateRows = `repeat(${gridSize}, 28px)`; let numCols = 3; if (wordCount > 15) numCols = 4; if (wordCount <= 10) numCols = 2; wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`; wordListElement.style.gridAutoFlow = 'column'; wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`; for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { const cell = document.createElement('div'); cell.textContent = currentGridState[y][x]; gridElement.appendChild(cell); } } }
         
-        // --- v7.5 Updated Function ---
         function revealWords() {
             const gridCells = document.querySelectorAll('#grid div');
             if (placedWordDetails.length === 0 || gridCells.length === 0) return;
@@ -385,60 +385,53 @@
             }
         }
         
-        // --- v7.5 New Function ---
+        // --- v7.6 Rewritten Function ---
         function drawTocPage(doc, allPuzzlesData, tocPageNum, includePageNumbers, answerKeyStartPage) {
-            const pageW = doc.internal.pageSize.getWidth(), margin = 20;
+            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 20;
             let currentY = margin;
             doc.setFont('helvetica', 'bold').setFontSize(20).text("Table of Contents", pageW / 2, currentY, { align: 'center' });
             currentY += 15;
 
-            doc.setFont('helvetica', 'normal').setFontSize(12);
+            doc.setFont('helvetica', 'normal').setFontSize(10);
             const contentStartY = currentY;
-            const lineHeight = 7;
-            const dot = ".";
-            const maxLineWidth = pageW - (margin * 2);
+            const lineHeight = 6;
+            const numCols = 3;
+            const colWidth = (pageW - (margin * 2)) / numCols;
+            const entriesPerCol = Math.ceil((allPuzzlesData.length + (answerKeyStartPage ? 1 : 0)) / numCols);
 
-            allPuzzlesData.forEach((puzzleData, index) => {
-                const puzzleNum = index + 1;
-                const puzzlePageNum = puzzleNum; 
-                const text = `Puzzle ${puzzleNum}: ${puzzleData.theme}`;
-                
-                const textWidth = doc.getStringUnitWidth(text) * doc.getFontSize() / doc.internal.scaleFactor;
-                const pageNumText = String(puzzlePageNum);
-                const pageNumWidth = doc.getStringUnitWidth(pageNumText) * doc.getFontSize() / doc.internal.scaleFactor;
-                
-                const dotWidth = doc.getStringUnitWidth(dot) * doc.getFontSize() / doc.internal.scaleFactor;
-                const availableSpaceForDots = maxLineWidth - textWidth - pageNumWidth - 2; // -2 for spacing
-                const numDots = Math.floor(availableSpaceForDots / dotWidth);
-                const dots = dot.repeat(numDots);
+            let entries = allPuzzlesData.map((puzzleData, index) => ({
+                text: `Puzzle ${index + 1}: ${puzzleData.theme.substring(0, 15)}`,
+                pageNum: index + 1
+            }));
 
-                doc.text(text, margin, currentY);
-                doc.text(dots, margin + textWidth + 1, currentY);
-                doc.text(pageNumText, maxLineWidth + margin - pageNumWidth, currentY);
-                currentY += lineHeight;
-            });
-            
             if (answerKeyStartPage) {
-                const text = `Answer Key`;
-                const textWidth = doc.getStringUnitWidth(text) * doc.getFontSize() / doc.internal.scaleFactor;
-                const pageNumText = String(answerKeyStartPage);
-                const pageNumWidth = doc.getStringUnitWidth(pageNumText) * doc.getFontSize() / doc.internal.scaleFactor;
-                const dotWidth = doc.getStringUnitWidth(dot) * doc.getFontSize() / doc.internal.scaleFactor;
-                const availableSpaceForDots = maxLineWidth - textWidth - pageNumWidth - 2;
-                const numDots = Math.floor(availableSpaceForDots / dotWidth);
-                const dots = dot.repeat(numDots);
-
-                doc.text(text, margin, currentY);
-                doc.text(dots, margin + textWidth + 1, currentY);
-                doc.text(pageNumText, maxLineWidth + margin - pageNumWidth, currentY);
+                entries.push({ text: 'Answer Key', pageNum: answerKeyStartPage });
             }
 
+            entries.forEach((entry, index) => {
+                const col = Math.floor(index / entriesPerCol);
+                const row = index % entriesPerCol;
+                
+                const xPos = margin + (col * colWidth);
+                const yPos = contentStartY + (row * lineHeight);
+
+                const pageNumText = String(entry.pageNum);
+                const availableWidth = colWidth - 10;
+                let truncatedText = entry.text;
+                
+                while (doc.getStringUnitWidth(truncatedText) * doc.getFontSize() / doc.internal.scaleFactor > availableWidth) {
+                    truncatedText = truncatedText.slice(0, -1);
+                }
+
+                doc.text(truncatedText, xPos, yPos);
+                doc.text(pageNumText, xPos + colWidth - 8, yPos, { align: 'right' });
+            });
+
             if (includePageNumbers && tocPageNum) {
-                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(tocPageNum), pageW / 2, doc.internal.pageSize.getHeight() - (margin / 2), { align: 'center' });
+                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(tocPageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
             }
         }
 
-        // --- v7.5 Updated Function ---
         function drawAnswerKey(doc, allPuzzlesData, includePageNumbers, startingPageNum) {
             let currentPage = startingPageNum;
             doc.addPage();
@@ -496,18 +489,16 @@
         function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
 
-        // --- v7.5 Majorly Refactored Function ---
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
             
             const includeAnswerKey = document.getElementById('answer-key-checkbox').checked;
             const includePageNumbers = document.getElementById('page-numbers-checkbox').checked;
-            const includeToc = document.getElementById('toc-checkbox').checked;
+            const includeToc = document.getElementById('toc-checkbox').checked && includePageNumbers;
             const bookTitle = document.getElementById('book-title-input').value.trim();
             const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
             
-            gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = '';
             isGeneratingBook = true;
             setUiLoading(true);
             loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -515,13 +506,10 @@
             
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            doc.deletePage(1);
-
-            const delay = 250; // Shortened for faster generation after data is fetched
+            doc.deletePage(1); 
             const allPuzzlesData = [];
             
             try {
-                // Step 1: Generate all puzzle data first
                 for (let i = 1; i <= puzzleCount; i++) {
                     if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; }
                     const remaining = puzzleCount - i + 1;
@@ -537,34 +525,33 @@
                 loaderTimeElement.textContent = '';
                 await new Promise(resolve => setTimeout(resolve, 50));
 
-                // Step 2: Assemble the PDF
-                let currentPage = 1;
+                let pageOffset = 0;
+                if (bookTitle) { doc.addPage(); pageOffset++; }
+                if (includeToc) { doc.addPage(); pageOffset++; }
+
+                let tocPageNum = bookTitle ? 2 : 1;
+                let puzzleStartPage = bookTitle ? (includeToc ? 3 : 2) : (includeToc ? 2 : 1);
+                let answerKeyStartPage = puzzleStartPage + puzzleCount;
 
                 if (bookTitle) {
-                    doc.addPage();
+                    doc.setPage(1);
                     const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
                     doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align: 'center'});
                     if (bookSubtitle) doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
-                    currentPage++;
                 }
                 
-                const answerKeyStartPage = includeToc ? currentPage + puzzleCount + 1 : currentPage + puzzleCount;
-
                 if (includeToc) {
-                    doc.addPage();
-                    drawTocPage(doc, allPuzzlesData, currentPage, includePageNumbers, includeAnswerKey ? answerKeyStartPage : null);
-                    currentPage++;
+                    doc.setPage(bookTitle ? 2 : 1);
+                    drawTocPage(doc, allPuzzlesData, includePageNumbers ? tocPageNum : null, includePageNumbers, includeAnswerKey ? answerKeyStartPage : null);
                 }
 
                 allPuzzlesData.forEach((puzzleData, index) => {
                     doc.addPage();
-                    drawPuzzleOnPdfPage(doc, puzzleData, currentPage + index, includePageNumbers);
+                    drawPuzzleOnPdfPage(doc, puzzleData, includePageNumbers ? puzzleStartPage + index : null, includePageNumbers);
                 });
                 
-                currentPage += puzzleCount;
-
                 if (includeAnswerKey && allPuzzlesData.length > 0) {
-                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers, currentPage);
+                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers, includePageNumbers ? answerKeyStartPage : null);
                 }
 
                 const safeTitle = (bookTitle.replace(/[^a-zA-Z0-9]/g, '-') || `Word-Search-Book-${puzzleCount}-Puzzles`).substring(0, 50);
@@ -587,7 +574,23 @@
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => {
                 generatePuzzle();
-            }, 250); 
+            }, 250);
+        }
+        
+        // --- v7.6 New Function ---
+        function toggleTocOption() {
+            const pageNumbersCheckbox = document.getElementById('page-numbers-checkbox');
+            const tocCheckbox = document.getElementById('toc-checkbox');
+            const tocLabel = document.getElementById('toc-label');
+
+            if (pageNumbersCheckbox.checked) {
+                tocCheckbox.disabled = false;
+                tocLabel.classList.remove('disabled');
+            } else {
+                tocCheckbox.disabled = true;
+                tocCheckbox.checked = false;
+                tocLabel.classList.add('disabled');
+            }
         }
 
         window.addEventListener('load', () => generatePuzzle(false));
