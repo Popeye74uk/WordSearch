@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.23</title> <!-- v8.23 Change: Version updated -->
+    <title>Word Search Generator v8.24</title> <!-- v8.24 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -113,14 +113,21 @@
         
         #completion-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-modal-bg); display: flex; justify-content: center; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
         #completion-modal.visible { opacity: 1; pointer-events: auto; }
-        .modal-content { background-color: var(--color-modal-content-bg); padding: 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px var(--color-box-shadow); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
+        .modal-content { background-color: var(--color-modal-content-bg); padding: 25px 40px 40px 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px var(--color-box-shadow); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
         #completion-modal.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 2.5em; margin-top: 0; margin-bottom: 20px; color: var(--color-success); }
         .modal-content button { min-width: 150px; background-color: var(--color-primary); }
-        /* v8.23: Styles for completion time details */
-        #completion-details { margin-bottom: 25px; font-size: 1.1em; color: var(--color-text-primary); }
-        #completion-details p { margin: 5px 0; }
-        #new-best-time { color: var(--color-warning); font-weight: bold; }
+        
+        /* v8.24: Score breakdown styles */
+        #score-breakdown { display: flex; justify-content: center; gap: 30px; margin-bottom: 20px; font-size: 1.1em; color: var(--color-text-primary); }
+        .score-column { text-align: left; }
+        .score-column:first-child { padding-right: 30px; border-right: 1px solid var(--color-grid-lines); }
+        .score-label { color: var(--color-text-secondary); display: inline-block; width: 150px; }
+        .score-value { font-weight: bold; text-align: right; display: inline-block; width: 60px; }
+        #final-score { font-size: 1.5em; font-weight: bold; margin-top: 20px; margin-bottom: 25px; }
+        #final-score span { color: var(--color-primary); }
+        #best-score-container { font-size: 0.9em; color: var(--color-text-secondary); }
+        #new-best-score { color: var(--color-warning); font-weight: bold; }
 
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
@@ -150,6 +157,8 @@
             #words { grid-template-columns: 1fr !important; grid-auto-flow: row !important; }
             #book-checkbox-options { flex-direction: column; align-items: flex-start; gap: 12px; }
             .modal-content h2 { font-size: 2em; }
+            #score-breakdown { flex-direction: column; gap: 10px; }
+            .score-column:first-child { border-right: none; padding-right: 0; }
         }
     </style>
     <style id="dynamic-grid-styles"></style>
@@ -246,31 +255,51 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.23</div> <!-- v8.23 Change: Version number incremented -->
+        <div id="version-info">v8.24</div> <!-- v8.24 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
         <div class="modal-content">
             <h2>Congratulations!</h2>
-            <!-- v8.23: New container for time details -->
-            <div id="completion-details">
-                <p id="your-time"></p>
-                <p id="best-time"></p>
-                <p id="new-best-time"></p>
+            <!-- v8.24: New score breakdown layout -->
+            <div id="score-breakdown">
+                <div class="score-column">
+                    <p><span class="score-label">Word Score:</span> <span id="score-base" class="score-value"></span></p>
+                    <p><span class="score-label">Time Bonus:</span> <span id="score-time-bonus" class="score-value"></span></p>
+                </div>
+                <div class="score-column">
+                    <p><span class="score-label">Hint Penalty:</span> <span id="score-hint-penalty" class="score-value"></span></p>
+                    <p><span class="score-label">Guess Penalty:</span> <span id="score-guess-penalty" class="score-value"></span></p>
+                </div>
+            </div>
+            <p id="final-score">Final Score: <span id="score-final"></span></p>
+            <div id="best-score-container">
+                <p id="best-score"></p>
+                <p id="new-best-score"></p>
             </div>
             <button onclick="generatePuzzle()">Play Again?</button>
         </div>
     </div>
     
     <script>
+        // v8.24: Scoring constants
+        const SCORE_POINTS_PER_LETTER = 10;
+        const SCORE_HINT_PENALTY = 100;
+        const SCORE_GUESS_PENALTY = 5;
+        const SCORE_TIME_BONUS_PAR_SECONDS = 300; // 5 minutes
+        const SCORE_POINTS_PER_SECOND_BONUS = 2;
+
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.23: Variables for timer
+        // v8.24: Variables for timer and score tracking
         let startTime;
         let puzzleConfigKey;
+        let currentScore = 0;
+        let incorrectGuesses = 0;
+        let hintsUsed = 0;
 
         let isSelecting = false;
         let selectionStartCell = null;
@@ -287,7 +316,7 @@
               loader = document.getElementById('loader'), loaderText = document.getElementById('loader-text'),
               loaderTimeElement = document.getElementById('loader-time'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
-              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'), // v8.23: Get difficulty select
+              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'),
               mainControls = document.getElementById('main-controls'),
               advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
@@ -411,10 +440,14 @@
             setUiLoading(true);
             hideCompletionModal();
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
+            // v8.24: Reset score and timer variables
             foundWords.clear();
             activeHintCoords = null; 
             solvedHintCoords.clear(); 
-            startTime = null; // v8.23: Reset timer
+            startTime = null; 
+            currentScore = 0;
+            incorrectGuesses = 0;
+            hintsUsed = 0;
             
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
@@ -444,7 +477,7 @@
                 });
 
                 const difficulty = difficultySelect.value;
-                puzzleConfigKey = `${gridSize}-${difficulty}`; // v8.23: Set config key
+                puzzleConfigKey = `bestScore-${gridSize}-${difficulty}`;
                 const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
                 statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
@@ -461,7 +494,7 @@
                 });
                 gridWrapper.style.visibility = 'visible';
                 wordListContainer.style.visibility = 'visible';
-                startTime = Date.now(); // v8.23: Start the timer!
+                startTime = Date.now();
             } catch (error) {
                 statusElement.textContent = error.message;
             } finally {
@@ -819,6 +852,7 @@
 
             if (foundDetail) {
                 foundWords.add(foundDetail.word);
+                currentScore += foundDetail.word.length * SCORE_POINTS_PER_LETTER; // v8.24: Add score
                 updateWordCounter();
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
@@ -834,10 +868,10 @@
                 redrawGridStyles();
 
                 if (foundWords.size === placedWordDetails.length) {
-                    const elapsedTime = Date.now() - startTime;
-                    handlePuzzleCompletion(elapsedTime);
+                    handlePuzzleCompletion();
                 }
             } else {
+                incorrectGuesses++; // v8.24: Track incorrect guess
                 selectedElements.forEach(cell => cell.classList.add('incorrect-selection'));
                 setTimeout(() => {
                     selectedElements.forEach(cell => cell.classList.remove('incorrect-selection'));
@@ -861,7 +895,8 @@
             if (unfoundWords.length === 0) {
                 return;
             }
-
+            
+            hintsUsed++; // v8.24: Track hint usage
             const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
             const startLocation = wordToHint.locations[0];
 
@@ -873,29 +908,43 @@
             }, 1000);
         }
 
-        // v8.23: New functions for timer and scoring
-        function formatTime(milliseconds) {
-            const totalSeconds = Math.floor(milliseconds / 1000);
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
+        // v8.24: Scoring and completion logic
+        function handlePuzzleCompletion() {
+            const elapsedTime = Date.now() - startTime;
 
-        function handlePuzzleCompletion(elapsedTime) {
-            const yourTime = elapsedTime;
-            const bestTime = localStorage.getItem(puzzleConfigKey);
+            // Calculate score components
+            const baseScore = currentScore;
+            const timeBonus = Math.max(0, Math.floor((SCORE_TIME_BONUS_PAR_SECONDS * 1000 - elapsedTime) / 1000) * SCORE_POINTS_PER_SECOND_BONUS);
+            const hintPenalty = hintsUsed * SCORE_HINT_PENALTY;
+            const guessPenalty = incorrectGuesses * SCORE_GUESS_PENALTY;
+            
+            let difficultyMultiplier = 1.0;
+            switch(difficultySelect.value) {
+                case 'medium': difficultyMultiplier = 1.2; break;
+                case 'hard': difficultyMultiplier = 1.5; break;
+            }
+            
+            const scoreAfterMultiplier = Math.round(baseScore * difficultyMultiplier);
+            const finalScore = scoreAfterMultiplier + timeBonus - hintPenalty - guessPenalty;
+
+            // Check against best score
+            const bestScore = localStorage.getItem(puzzleConfigKey);
             let isNewBest = false;
 
-            if (bestTime === null || yourTime < parseInt(bestTime, 10)) {
-                localStorage.setItem(puzzleConfigKey, yourTime);
+            if (bestScore === null || finalScore > parseInt(bestScore, 10)) {
+                localStorage.setItem(puzzleConfigKey, finalScore);
                 isNewBest = true;
             }
+            const updatedBestScore = localStorage.getItem(puzzleConfigKey);
 
-            const updatedBestTime = localStorage.getItem(puzzleConfigKey);
-
-            document.getElementById('your-time').textContent = `Your time: ${formatTime(yourTime)}`;
-            document.getElementById('best-time').textContent = `Best time: ${formatTime(updatedBestTime)}`;
-            document.getElementById('new-best-time').textContent = isNewBest ? 'New Best Time!' : '';
+            // Update modal text
+            document.getElementById('score-base').textContent = `${scoreAfterMultiplier} (x${difficultyMultiplier})`;
+            document.getElementById('score-time-bonus').textContent = `+${timeBonus}`;
+            document.getElementById('score-hint-penalty').textContent = `-${hintPenalty}`;
+            document.getElementById('score-guess-penalty').textContent = `-${guessPenalty}`;
+            document.getElementById('score-final').textContent = finalScore;
+            document.getElementById('best-score').textContent = `Best score: ${updatedBestScore}`;
+            document.getElementById('new-best-score').textContent = isNewBest ? 'New Best Score!' : '';
             
             showCompletionModal();
         }
