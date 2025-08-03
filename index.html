@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.7</title>
+    <title>Word Search Generator v7.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -136,7 +136,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.7</div>
+        <div id="version-info">v7.8</div>
     </div>
     
     <script>
@@ -385,7 +385,6 @@
             }
         }
         
-        // --- v7.7 Rewritten Function for multi-column, vertical fill ---
         function drawTocPage(doc, tocEntries, tocPageNum, includePageNumbers) {
             const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 20;
             let currentY = margin;
@@ -399,27 +398,29 @@
             const colWidth = (pageW - (margin * 2)) / numCols;
             const entriesPerCol = Math.ceil(tocEntries.length / numCols);
 
-            for (let col = 0; col < numCols; col++) {
-                for (let row = 0; row < entriesPerCol; row++) {
-                    const index = (col * entriesPerCol) + row;
-                    if (index >= tocEntries.length) break;
-
-                    const entry = tocEntries[index];
-                    const xPos = margin + (col * colWidth);
-                    const yPos = contentStartY + (row * lineHeight);
-                    
-                    const pageNumText = String(entry.page);
-                    const availableWidth = colWidth - 10;
-                    let truncatedText = entry.text;
-                    
-                    while (doc.getStringUnitWidth(`${truncatedText}...`) * doc.getFontSize() / doc.internal.scaleFactor > availableWidth) {
-                        truncatedText = truncatedText.slice(0, -1);
-                    }
-                    const finalText = (truncatedText.length < entry.text.length) ? `${truncatedText}...` : truncatedText;
-
-                    doc.text(finalText, xPos, yPos);
-                    doc.text(pageNumText, xPos + colWidth - 8, yPos, { align: 'right' });
+            for (let i = 0; i < tocEntries.length; i++) {
+                const entry = tocEntries[i];
+                const col = Math.floor(i / entriesPerCol);
+                const row = i % entriesPerCol;
+                
+                const xPos = margin + (col * colWidth);
+                const yPos = contentStartY + (row * lineHeight);
+                
+                const pageNumText = String(entry.page);
+                const prefix = `${entry.puzzleNum}: `;
+                
+                const prefixWidth = doc.getStringUnitWidth(prefix) * doc.getFontSize() / doc.internal.scaleFactor;
+                const pageNumWidth = doc.getStringUnitWidth(pageNumText) * doc.getFontSize() / doc.internal.scaleFactor;
+                const availableWidth = colWidth - prefixWidth - pageNumWidth - 5; 
+                
+                let truncatedText = entry.text;
+                while (doc.getStringUnitWidth(truncatedText) * doc.getFontSize() / doc.internal.scaleFactor > availableWidth) {
+                    truncatedText = truncatedText.slice(0, -1);
                 }
+                const finalText = (truncatedText.length < entry.text.length) ? `${truncatedText}...` : truncatedText;
+
+                doc.text(prefix + finalText, xPos, yPos);
+                doc.text(pageNumText, xPos + colWidth - 8, yPos, { align: 'right' });
             }
             
             if (includePageNumbers && tocPageNum) {
@@ -427,7 +428,6 @@
             }
         }
         
-        // --- v7.7 Updated Function ---
         function drawAnswerKey(doc, allPuzzlesData, includePageNumbers, startingPageNum) {
             let currentPage = startingPageNum;
             doc.addPage();
@@ -508,7 +508,6 @@
                 for (let i = 1; i <= puzzleCount; i++) {
                     if (!isGeneratingBook) { statusElement.textContent = "Book generation cancelled."; return; }
                     const remaining = puzzleCount - i + 1;
-                    // --- v7.7 Updated Timer Calculation ---
                     const timeEstimate = Math.round(remaining * (280 / 1000));
                     loaderText.textContent = `Generating Puzzle Data ${i} of ${puzzleCount}...`;
                     loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
@@ -526,6 +525,7 @@
 
                 if (bookTitle) {
                     doc.addPage();
+                    doc.setPage(currentPage);
                     const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
                     doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align: 'center'});
                     if (bookSubtitle) doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
@@ -537,8 +537,10 @@
                 
                 if (includeToc) {
                     doc.addPage();
-                    let tocEntries = allPuzzlesData.map((p, i) => ({ text: `${i + 1}: ${p.theme}`, page: puzzleStartPage + i }));
-                    if(includeAnswerKey) tocEntries.push({ text: 'Answer Key', page: answerKeyStartPage });
+                    doc.setPage(currentPage);
+                    let tocEntries = allPuzzlesData.map((p, i) => ({ puzzleNum: i + 1, text: p.theme, page: puzzleStartPage + i }));
+                    if(includeAnswerKey) tocEntries.push({ puzzleNum: 'Answer Key', text: '', page: answerKeyStartPage });
+                    
                     drawTocPage(doc, tocEntries, includePageNumbers ? currentPage : null, includePageNumbers);
                     currentPage++;
                     puzzleStartPage++;
