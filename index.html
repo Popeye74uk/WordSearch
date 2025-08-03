@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.3</title>
+    <title>Word Search Generator v8.4</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -489,7 +489,7 @@
         function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
 
-        // --- v8.2 Majorly Refactored Function ---
+        // --- v8.3 Majorly Refactored Function ---
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
@@ -525,7 +525,7 @@
                 loaderTimeElement.textContent = '';
                 await new Promise(resolve => setTimeout(resolve, 50));
 
-                doc.deletePage(1); // Start with a clean slate
+                doc.deletePage(1); // Start with a completely clean slate
 
                 if (bookTitle) {
                     doc.addPage();
