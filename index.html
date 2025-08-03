@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.22</title> <!-- v8.22 Change: Version updated -->
+    <title>Word Search Generator v8.23</title> <!-- v8.23 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -33,7 +33,7 @@
             --color-revealed-bg: #ffc107;
             --color-revealed-text: #000;
             --color-selecting-bg: #d0e8ff;
-            --color-incorrect-bg: #ff4d4d; /* v8.22: Incorrect selection color */
+            --color-incorrect-bg: #ff4d4d;
         }
 
         body.dark-mode {
@@ -70,7 +70,6 @@
         #grid div.revealed { background-color: var(--color-revealed-bg); color: var(--color-revealed-text); }
         #grid div.selecting { background-color: var(--color-selecting-bg); }
         #grid div.hint-reveal { background-color: var(--color-info); color: white; }
-        /* v8.22: Style for incorrect word selection */
         #grid div.incorrect-selection { background-color: var(--color-incorrect-bg); color: white; }
 
         body.dark-mode .loader { background-color: var(--color-background); }
@@ -118,6 +117,10 @@
         #completion-modal.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 2.5em; margin-top: 0; margin-bottom: 20px; color: var(--color-success); }
         .modal-content button { min-width: 150px; background-color: var(--color-primary); }
+        /* v8.23: Styles for completion time details */
+        #completion-details { margin-bottom: 25px; font-size: 1.1em; color: var(--color-text-primary); }
+        #completion-details p { margin: 5px 0; }
+        #new-best-time { color: var(--color-warning); font-weight: bold; }
 
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
@@ -243,12 +246,18 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.22</div> <!-- v8.22 Change: Version number incremented -->
+        <div id="version-info">v8.23</div> <!-- v8.23 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
         <div class="modal-content">
             <h2>Congratulations!</h2>
+            <!-- v8.23: New container for time details -->
+            <div id="completion-details">
+                <p id="your-time"></p>
+                <p id="best-time"></p>
+                <p id="new-best-time"></p>
+            </div>
             <button onclick="generatePuzzle()">Play Again?</button>
         </div>
     </div>
@@ -258,6 +267,10 @@
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
         let debounceTimeout;
+
+        // v8.23: Variables for timer
+        let startTime;
+        let puzzleConfigKey;
 
         let isSelecting = false;
         let selectionStartCell = null;
@@ -274,7 +287,8 @@
               loader = document.getElementById('loader'), loaderText = document.getElementById('loader-text'),
               loaderTimeElement = document.getElementById('loader-time'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
-              gridSizeSelect = document.getElementById('grid-size-select'), mainControls = document.getElementById('main-controls'),
+              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'), // v8.23: Get difficulty select
+              mainControls = document.getElementById('main-controls'),
               advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
               globalOptionsContainer = document.getElementById('global-options-container'),
@@ -400,6 +414,7 @@
             foundWords.clear();
             activeHintCoords = null; 
             solvedHintCoords.clear(); 
+            startTime = null; // v8.23: Reset timer
             
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
@@ -428,7 +443,8 @@
                     });
                 });
 
-                const difficulty = document.getElementById('difficulty-select').value;
+                const difficulty = difficultySelect.value;
+                puzzleConfigKey = `${gridSize}-${difficulty}`; // v8.23: Set config key
                 const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
                 statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
@@ -445,6 +461,7 @@
                 });
                 gridWrapper.style.visibility = 'visible';
                 wordListContainer.style.visibility = 'visible';
+                startTime = Date.now(); // v8.23: Start the timer!
             } catch (error) {
                 statusElement.textContent = error.message;
             } finally {
@@ -787,7 +804,6 @@
             pathCells.forEach(c => c.classList.add('selecting'));
         }
 
-        // v8.22: Added incorrect word feedback
         function handleInteractionEnd() {
             if (!isSelecting) return;
             isSelecting = false;
@@ -818,10 +834,10 @@
                 redrawGridStyles();
 
                 if (foundWords.size === placedWordDetails.length) {
-                    showCompletionModal();
+                    const elapsedTime = Date.now() - startTime;
+                    handlePuzzleCompletion(elapsedTime);
                 }
             } else {
-                // Incorrect word selected, flash the cells
                 selectedElements.forEach(cell => cell.classList.add('incorrect-selection'));
                 setTimeout(() => {
                     selectedElements.forEach(cell => cell.classList.remove('incorrect-selection'));
@@ -855,6 +871,33 @@
             setTimeout(() => {
                 hintBtn.disabled = false;
             }, 1000);
+        }
+
+        // v8.23: New functions for timer and scoring
+        function formatTime(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function handlePuzzleCompletion(elapsedTime) {
+            const yourTime = elapsedTime;
+            const bestTime = localStorage.getItem(puzzleConfigKey);
+            let isNewBest = false;
+
+            if (bestTime === null || yourTime < parseInt(bestTime, 10)) {
+                localStorage.setItem(puzzleConfigKey, yourTime);
+                isNewBest = true;
+            }
+
+            const updatedBestTime = localStorage.getItem(puzzleConfigKey);
+
+            document.getElementById('your-time').textContent = `Your time: ${formatTime(yourTime)}`;
+            document.getElementById('best-time').textContent = `Best time: ${formatTime(updatedBestTime)}`;
+            document.getElementById('new-best-time').textContent = isNewBest ? 'New Best Time!' : '';
+            
+            showCompletionModal();
         }
 
         function showCompletionModal() {
@@ -893,9 +936,6 @@
         } else {
             setTheme('light');
         }
-
-        // --- END THEME TOGGLE ---
-
 
         // Mouse Events
         gridElement.addEventListener('mousedown', (e) => {
