@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.23</title> <!-- v8.23 Change: Version updated -->
+    <title>Word Search Generator v8.26</title> <!-- v8.26 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -113,14 +113,20 @@
         
         #completion-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-modal-bg); display: flex; justify-content: center; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
         #completion-modal.visible { opacity: 1; pointer-events: auto; }
-        .modal-content { background-color: var(--color-modal-content-bg); padding: 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px var(--color-box-shadow); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
+        .modal-content { background-color: var(--color-modal-content-bg); padding: 25px 40px 40px 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px var(--color-box-shadow); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
         #completion-modal.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 2.5em; margin-top: 0; margin-bottom: 20px; color: var(--color-success); }
         .modal-content button { min-width: 150px; background-color: var(--color-primary); }
-        /* v8.23: Styles for completion time details */
-        #completion-details { margin-bottom: 25px; font-size: 1.1em; color: var(--color-text-primary); }
-        #completion-details p { margin: 5px 0; }
-        #new-best-time { color: var(--color-warning); font-weight: bold; }
+        
+        #completion-stats { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; font-size: 1.1em; color: var(--color-text-primary); }
+        .stat-column { text-align: left; padding: 0 20px; }
+        .stat-column:first-child { border-right: 1px solid var(--color-grid-lines); }
+        .stat-column p { margin: 8px 0; display: flex; justify-content: space-between; }
+        .stat-label { color: var(--color-text-secondary); padding-right: 15px; }
+        .stat-value { font-weight: bold; }
+        #final-score-container { font-size: 1.5em; font-weight: bold; margin-top: 20px; margin-bottom: 25px; }
+        #final-score-container span { color: var(--color-primary); }
+        .new-best-message { color: var(--color-warning); font-weight: bold; height: 1.2em; font-size: 0.9em; margin-top: 4px !important; text-align: left; }
 
         #grid-wrapper, #word-list-container { visibility: hidden; }
 
@@ -144,12 +150,14 @@
             #words { grid-template-columns: repeat(2, 1fr) !important; gap: 0 25px; }
         }
 
-        @media (max-width: 480px) {
+        @media (max-width: 520px) {
             .main-header h1 { font-size: 1.5em; }
             .controls-grid { grid-template-columns: 1fr; }
             #words { grid-template-columns: 1fr !important; grid-auto-flow: row !important; }
             #book-checkbox-options { flex-direction: column; align-items: flex-start; gap: 12px; }
             .modal-content h2 { font-size: 2em; }
+            #completion-stats { flex-direction: column; gap: 10px; }
+            .stat-column:first-child { border-right: none; padding-right: 0; border-bottom: 1px solid var(--color-grid-lines); padding-bottom: 10px; }
         }
     </style>
     <style id="dynamic-grid-styles"></style>
@@ -246,31 +254,50 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.23</div> <!-- v8.23 Change: Version number incremented -->
+        <div id="version-info">v8.26</div> <!-- v8.26 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
         <div class="modal-content">
             <h2>Congratulations!</h2>
-            <!-- v8.23: New container for time details -->
-            <div id="completion-details">
-                <p id="your-time"></p>
-                <p id="best-time"></p>
-                <p id="new-best-time"></p>
+            <!-- v8.26: Redesigned score/time layout -->
+            <div id="completion-stats">
+                <div class="stat-column">
+                    <p><span class="stat-label">Your Time:</span><span id="your-time" class="stat-value"></span></p>
+                    <p><span class="stat-label">Time Bonus:</span><span id="score-time-bonus" class="stat-value"></span></p>
+                    <p><span class="stat-label">Best Time:</span><span id="best-time" class="stat-value"></span></p>
+                    <p class="new-best-message" id="new-best-time"></p>
+                </div>
+                <div class="stat-column">
+                    <p><span class="stat-label">Word Score:</span><span id="score-base" class="stat-value"></span></p>
+                    <p><span class="stat-label">Difficulty Bonus:</span><span id="score-difficulty-bonus" class="stat-value"></span></p>
+                    <p><span class="stat-label">Hint Penalty:</span><span id="score-hint-penalty" class="stat-value"></span></p>
+                    <p><span class="stat-label">Best Score:</span><span id="best-score" class="stat-value"></span></p>
+                    <p class="new-best-message" id="new-best-score"></p>
+                </div>
             </div>
+            <p id="final-score-container">Final Score: <span id="score-final"></span></p>
             <button onclick="generatePuzzle()">Play Again?</button>
         </div>
     </div>
     
     <script>
+        // v8.26: Updated scoring constants
+        const SCORE_POINTS_PER_LETTER = 10;
+        const SCORE_HINT_PENALTY = 150;
+        const SCORE_TIME_BONUS_PAR_SECONDS = 300; // 5 minutes
+        const SCORE_POINTS_PER_SECOND_BONUS = 2;
+
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.23: Variables for timer
         let startTime;
-        let puzzleConfigKey;
+        let puzzleConfigKey_score;
+        let puzzleConfigKey_time;
+        let currentScore = 0;
+        let hintsUsed = 0;
 
         let isSelecting = false;
         let selectionStartCell = null;
@@ -287,7 +314,7 @@
               loader = document.getElementById('loader'), loaderText = document.getElementById('loader-text'),
               loaderTimeElement = document.getElementById('loader-time'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
-              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'), // v8.23: Get difficulty select
+              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'),
               mainControls = document.getElementById('main-controls'),
               advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
@@ -297,11 +324,17 @@
               completionModal = document.getElementById('completion-modal'),
               wordCounterElement = document.getElementById('word-counter');
         
+        // v8.26: Safer utility to remove non-alphabetic characters
+        function sanitizeWord(word) {
+            if (typeof word !== 'string') return '';
+            return word.replace(/[^a-zA-Z]/g, '');
+        }
+
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
         async function generatePuzzleData(isFromCustomPanel = false) {
             updatePuzzleParameters();
-            const customTheme = customThemeInput.value.trim();
+            const customTheme = sanitizeWord(customThemeInput.value.trim());
             const apiMaxResults = 500;
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
             
@@ -313,14 +346,14 @@
                     if (!response.ok) throw new Error('API Failed');
                     let wordsData = await response.json();
                     wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
+                    // FIX: Reverted the regex to its original state.
                     let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
                     const finalList = [];
                     for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))); if (!isSimilar) finalList.push(wordData); }
                     if (finalList.length < wordCount) throw new Error("Could not find enough unique words for the theme.");
-                    const puzzleWords = finalList.map(d => d.word);
-                    const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
-                    return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', grid, placedDetails };
+                    const puzzleWords = finalList.map(d => sanitizeWord(d.word));
+                    return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', puzzleWords };
                 } catch (error) { throw error; }
             } else {
                 const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
@@ -329,13 +362,14 @@
                     try {
                         let response = await fetch(`https://api.datamuse.com/words?sp=${letters[Math.floor(Math.random()*letters.length)]}*&max=500`);
                         if (!response.ok) continue;
-                        let seedWords = (await response.json()).map(w => w.word).filter(w => !PROFANITY_SET.has(w.toLowerCase()));
+                        let seedWords = (await response.json()).map(w => sanitizeWord(w.word)).filter(w => w && !PROFANITY_SET.has(w.toLowerCase()));
                         if (seedWords.length === 0) continue;
                         const seedWord = seedWords[Math.floor(Math.random() * seedWords.length)];
                         response = await fetch(`https://api.datamuse.com/words?ml=${seedWord}&max=${apiMaxResults}&md=p`);
                         if (!response.ok) continue;
                         let wordsData = await response.json();
                         wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
+                        // FIX: Reverted the regex to its original state.
                         let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             const finalList = [];
@@ -351,13 +385,87 @@
                                     definition = (firstSentenceEnd > 0) ? fullDef.substring(0, firstSentenceEnd + 1) : fullDef;
                                 }
                             }
-                            const puzzleWords = finalList.map(d => d.word);
-                            const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
-                            return { theme: seedWord.toUpperCase(), definition, grid, placedDetails };
+                            const puzzleWords = finalList.map(d => sanitizeWord(d.word));
+                            return { theme: seedWord.toUpperCase(), definition, puzzleWords };
                         }
                     } catch (error) { console.error(`Attempt ${attempt} failed:`, error); }
                 }
                 throw new Error(`Failed to generate a random themed puzzle after ${maxRetries} attempts.`);
+            }
+        }
+        
+        async function generatePuzzle(isFromCustomPanel = false) {
+            setUiLoading(true, 'Finding words...');
+            hideCompletionModal();
+            wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
+            
+            foundWords.clear();
+            activeHintCoords = null; 
+            solvedHintCoords.clear(); 
+            startTime = null; 
+            currentScore = 0;
+            hintsUsed = 0;
+            
+            document.getElementById('hint-btn').disabled = false;
+            document.getElementById('reveal-btn').disabled = false;
+
+            if (isFromCustomPanel && sanitizeWord(customThemeInput.value.trim()) === '') {
+                alert("Please enter a Custom Theme to generate a puzzle.");
+                setUiLoading(false);
+                return;
+            }
+            
+            try {
+                const puzzleData = await generatePuzzleData(isFromCustomPanel);
+                
+                setUiLoading(true, 'Building puzzle grid...');
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                const { grid, placedDetails } = placeWordsOnGrid(puzzleData.puzzleWords);
+                
+                currentTheme = puzzleData.theme;
+                currentDefinition = puzzleData.definition;
+                currentGridState = grid;
+                placedWordDetails = placedDetails;
+
+                cellToWordMap.clear();
+                placedWordDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        const key = `${loc.x},${loc.y}`;
+                        if (!cellToWordMap.has(key)) { cellToWordMap.set(key, []); }
+                        cellToWordMap.get(key).push(detail.word);
+                    });
+                });
+
+                const difficulty = difficultySelect.value;
+                puzzleConfigKey_score = `bestScore-${gridSize}-${difficulty}`;
+                puzzleConfigKey_time = `bestTime-${gridSize}-${difficulty}`;
+                const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
+                statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
+                themeTitleElement.textContent = `Theme: ${currentTheme}`;
+                themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
+                updateGridDisplay();
+                updateWordCounter();
+                
+                const wordsForList = placedWordDetails.map(p => p.word).sort();
+                wordListElement.innerHTML = '';
+                wordsForList.forEach((word, index) => {
+                    const li = document.createElement('li');
+                    li.textContent = `${index + 1}) ${word}`;
+                    li.dataset.word = word;
+                    wordListElement.appendChild(li);
+                });
+                gridWrapper.style.visibility = 'visible';
+                wordListContainer.style.visibility = 'visible';
+                startTime = Date.now();
+            } catch (error) {
+                statusElement.textContent = error.message;
+            } finally {
+                setUiLoading(false);
+                if (isFromCustomPanel) {
+                    customThemeInput.value = '';
+                    hideCustomOptions();
+                }
             }
         }
 
@@ -403,74 +511,6 @@
             }
             for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; } }
             return { grid, placedDetails };
-        }
-
-        function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); loader.classList.toggle('hidden', !isLoading); loaderText.textContent = message; }
-        
-        async function generatePuzzle(isFromCustomPanel = false) {
-            setUiLoading(true);
-            hideCompletionModal();
-            wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
-            foundWords.clear();
-            activeHintCoords = null; 
-            solvedHintCoords.clear(); 
-            startTime = null; // v8.23: Reset timer
-            
-            document.getElementById('hint-btn').disabled = false;
-            document.getElementById('reveal-btn').disabled = false;
-
-            if (isFromCustomPanel && customThemeInput.value.trim() === '') {
-                alert("Please enter a Custom Theme to generate a puzzle.");
-                setUiLoading(false);
-                return;
-            }
-            
-            try {
-                const puzzleData = await generatePuzzleData(isFromCustomPanel);
-                currentTheme = puzzleData.theme;
-                currentDefinition = puzzleData.definition;
-                currentGridState = puzzleData.grid;
-                placedWordDetails = puzzleData.placedDetails;
-
-                cellToWordMap.clear();
-                placedWordDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        const key = `${loc.x},${loc.y}`;
-                        if (!cellToWordMap.has(key)) {
-                            cellToWordMap.set(key, []);
-                        }
-                        cellToWordMap.get(key).push(detail.word);
-                    });
-                });
-
-                const difficulty = difficultySelect.value;
-                puzzleConfigKey = `${gridSize}-${difficulty}`; // v8.23: Set config key
-                const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
-                statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
-                themeTitleElement.textContent = `Theme: ${currentTheme}`;
-                themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
-                updateGridDisplay();
-                updateWordCounter();
-                const wordsForList = placedWordDetails.map(p => p.word).sort();
-                wordListElement.innerHTML = '';
-                wordsForList.forEach((word, index) => {
-                    const li = document.createElement('li');
-                    li.textContent = `${index + 1}) ${word}`;
-                    li.dataset.word = word;
-                    wordListElement.appendChild(li);
-                });
-                gridWrapper.style.visibility = 'visible';
-                wordListContainer.style.visibility = 'visible';
-                startTime = Date.now(); // v8.23: Start the timer!
-            } catch (error) {
-                statusElement.textContent = error.message;
-            } finally {
-                setUiLoading(false);
-                if (isFromCustomPanel) {
-                    customThemeInput.value = '';
-                    hideCustomOptions();
-                }
-            }
         }
 
         function updateGridDisplay() {
@@ -547,204 +587,29 @@
             document.getElementById('hint-btn').disabled = true;
         }
         
-        function downloadPdf() {
-            if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const definitionText = themeDefinitionElement.textContent.replace(/"/g, '');
-            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, null, false);
-            doc.save(`Word-Search-${currentTheme}.pdf`);
-        }
-
-        function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
-            const { theme, definition, grid, placedDetails } = puzzleData;
-            const currentGridSize = grid.length;
-            const currentWordCount = placedDetails.length;
-            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
-            let currentY = margin;
-            doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'});
-            currentY += 8;
-            doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${theme}`, pageW/2, currentY, {align:'center'});
-            currentY += 6;
-            if (definition) {
-                doc.setFont('helvetica', 'italic').setFontSize(10);
-                const defLines = doc.splitTextToSize(`"${definition}"`, pageW - (margin*2) - 20);
-                doc.text(defLines, pageW / 2, currentY, { align: 'center' });
-                currentY += (defLines.length * 3.5);
-            }
-            const gridTotalSize = 150, cellSize = gridTotalSize / currentGridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5;
-            const fontSize = currentGridSize === 25 ? 10 : 12;
-            doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2);
-            doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
-            for (let y = 0; y < currentGridSize; y++) {
-                for (let x = 0; x < currentGridSize; x++) {
-                    doc.text(grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                }
-            }
-            const listStartY = startY + gridTotalSize + 12;
-            doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
-            doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedWordDetails.map(p => p.word).sort();
-            const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
-            const wordsPerCol = Math.ceil(currentWordCount / numCols);
-            const colWidths = Array(numCols).fill(0);
-            const gap = 15;
-            wordsForList.forEach((word, index) => {
-                const col = Math.floor(index / wordsPerCol);
-                const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * doc.getFontSize() / doc.internal.scaleFactor;
-                if (wordWidth > colWidths[col]) colWidths[col] = wordWidth;
-            });
-            const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (gap * (numCols - 1));
-            let listStartX = (pageW - totalListWidth) / 2;
-            wordsForList.forEach((word, index) => {
-                const col = Math.floor(index / wordsPerCol);
-                const row = index % wordsPerCol;
-                let xPos = listStartX;
-                for(let i=0; i<col; i++) { xPos += colWidths[i] + gap; }
-                const yPos = listStartY + 8 + (row * 6);
-                doc.text(`${index + 1}) ${word}`, xPos, yPos);
-            });
-            if (includePageNumbers && pageNum) {
-                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(pageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
-            }
-        }
-
-        function drawAnswerKey(doc, allPuzzlesData, includePageNumbers) {
-            doc.addPage();
-            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
-            doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
-            const puzzlesPerPage = 6, cols = 2, rows = 3;
-            const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows;
-            allPuzzlesData.forEach((puzzleData, index) => {
-                if (index > 0 && index % puzzlesPerPage === 0) {
-                    doc.addPage();
-                    doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
-                }
-                const puzzleNumber = index + 1;
-                const i = index % puzzlesPerPage;
-                const col = i % cols, row = Math.floor(i / cols);
-                const startX = margin + col * cellW, startY = margin + row * cellH;
-                
-                let labelText = puzzleData.theme;
-                if (includePageNumbers) {
-                    labelText = `Puzzle ${puzzleNumber}: ${puzzleData.theme}`;
-                }
-                
-                doc.setFont('helvetica', 'bold').setFontSize(10).text(labelText, startX + cellW/2, startY + 8, {align:'center'});
-                const currentGridSize = puzzleData.grid.length;
-                const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize;
-                const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
-                doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0);
-                for (let y = 0; y < currentGridSize; y++) {
-                    for (let x = 0; x < currentGridSize; x++) {
-                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    }
-                }
-                doc.setFillColor(255, 193, 7);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F');
-                    });
-                });
-                doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    });
-                });
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.2);
-                doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
-            });
-        }
-
         // --- UI State Functions ---
         function showCustomOptions() { mainControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; globalOptionsContainer.style.display = 'flex';}
         function hideCustomOptions() { mainControls.style.display = 'grid'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
         function showBookOptions() { mainControls.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function resetBookUI() { mainControls.style.display = 'grid'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
-
-        async function downloadBook() {
-            const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
-            if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) {
-                alert("Please enter a number between 1 and 100.");
-                return;
-            }
-            const includeAnswerKey = document.getElementById('answer-key-checkbox').checked;
-            const includePageNumbers = document.getElementById('page-numbers-checkbox').checked;
-            const bookTitle = document.getElementById('book-title-input').value.trim();
-            const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
-            gridElement.innerHTML = ''; wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = ''; statusElement.textContent = '';
-            isGeneratingBook = true;
-            setUiLoading(true);
-            loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            cancelBtn.style.display = 'block';
-            cancelBtn.disabled = false;
-            
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            doc.deletePage(1); 
-
-            const delay = 850;
-            const allPuzzlesData = [];
-            
-            try {
-                if (bookTitle) {
-                    doc.addPage();
-                    const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
-                    doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align: 'center'});
-                    if (bookSubtitle) {
-                        doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
-                    }
-                }
-
-                for (let i = 1; i <= puzzleCount; i++) {
-                    if (!isGeneratingBook) {
-                        statusElement.textContent = "Book generation cancelled.";
-                        return;
-                    }
-                    const remaining = puzzleCount - i + 1;
-                    const timeEstimate = Math.round(remaining * (delay / 1000));
-                    loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`;
-                    loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
-                    
-                    updatePuzzleParameters();
-                    const puzzleData = await generatePuzzleData(false);
-                    if (includeAnswerKey) {
-                        allPuzzlesData.push(puzzleData);
-                    }
-                    
-                    doc.addPage();
-                    drawPuzzleOnPdfPage(doc, puzzleData, i, includePageNumbers);
-
-                    if (i < puzzleCount) {
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-
-                if (includeAnswerKey && allPuzzlesData.length > 0) {
-                    loaderText.textContent = "Generating Answer Key...";
-                    loaderTimeElement.textContent = '';
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers);
-                }
-
-                const safeTitle = (bookTitle.replace(/[^a-zA-Z0-9]/g, '-') || `Word-Search-Book-${puzzleCount}-Puzzles`).substring(0, 50);
-                doc.save(`${safeTitle}.pdf`);
-                statusElement.textContent = "Book successfully generated!";
-            } catch (error) {
-                statusElement.textContent = `Error: ${error.message}`;
-            } finally {
-                isGeneratingBook = false;
-                setUiLoading(false);
-                resetBookUI();
-                generatePuzzle();
+        
+        function setUiLoading(isLoading, text = '') {
+            if (isLoading) {
+                loader.classList.remove('hidden');
+                loaderText.textContent = text;
+                cancelBtn.style.display = 'none';
+                gridWrapper.style.visibility = 'hidden';
+                wordListContainer.style.visibility = 'hidden';
+            } else {
+                loader.classList.add('hidden');
             }
         }
-
-        function cancelBookGeneration() { isGeneratingBook = false; }
-        function updatePuzzleParameters() { gridSize = parseInt(gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
         
+        function updatePuzzleParameters() {
+            gridSize = parseInt(gridSizeSelect.value, 10);
+            wordCount = Math.floor(gridSize * 0.85);
+        }
+
         function handleGlobalOptionChange() {
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => {
@@ -768,12 +633,14 @@
             let dir = {x: 0, y: 0};
             if (dx === 0 && dy === 0) {
                 return [startCell];
-            } else if (Math.abs(dx) === Math.abs(dy)) {
-                dir = { x: Math.sign(dx), y: Math.sign(dy) };
-            } else if (Math.abs(dx) > Math.abs(dy)) {
-                dir = { x: Math.sign(dx), y: 0 };
-            } else {
+            } else if (dx === 0) { // Vertical
                 dir = { x: 0, y: Math.sign(dy) };
+            } else if (dy === 0) { // Horizontal
+                dir = { x: Math.sign(dx), y: 0 };
+            } else if (Math.abs(dx) === Math.abs(dy)) { // Diagonal
+                dir = { x: Math.sign(dx), y: Math.sign(dy) };
+            } else { // Not a straight line, invalid path for word search
+                return [startCell];
             }
 
             const pathLength = Math.max(Math.abs(dx), Math.abs(dy));
@@ -819,6 +686,7 @@
 
             if (foundDetail) {
                 foundWords.add(foundDetail.word);
+                currentScore += foundDetail.word.length * SCORE_POINTS_PER_LETTER;
                 updateWordCounter();
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
@@ -834,8 +702,7 @@
                 redrawGridStyles();
 
                 if (foundWords.size === placedWordDetails.length) {
-                    const elapsedTime = Date.now() - startTime;
-                    handlePuzzleCompletion(elapsedTime);
+                    handlePuzzleCompletion();
                 }
             } else {
                 selectedElements.forEach(cell => cell.classList.add('incorrect-selection'));
@@ -850,6 +717,8 @@
 
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
+            if (hintBtn.disabled) return;
+
             hintBtn.disabled = true;
             
             if (activeHintCoords) {
@@ -859,9 +728,11 @@
 
             const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
             if (unfoundWords.length === 0) {
+                hintBtn.disabled = true;
                 return;
             }
-
+            
+            hintsUsed++;
             const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
             const startLocation = wordToHint.locations[0];
 
@@ -869,33 +740,67 @@
             redrawGridStyles();
             
             setTimeout(() => {
-                hintBtn.disabled = false;
+                if(foundWords.size < placedWordDetails.length) {
+                    hintBtn.disabled = false;
+                }
             }, 1000);
         }
 
-        // v8.23: New functions for timer and scoring
+        // v8.26: Completion logic and UI update
         function formatTime(milliseconds) {
+            if (milliseconds === null || isNaN(milliseconds)) return "--:--";
             const totalSeconds = Math.floor(milliseconds / 1000);
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        function handlePuzzleCompletion(elapsedTime) {
-            const yourTime = elapsedTime;
-            const bestTime = localStorage.getItem(puzzleConfigKey);
-            let isNewBest = false;
-
-            if (bestTime === null || yourTime < parseInt(bestTime, 10)) {
-                localStorage.setItem(puzzleConfigKey, yourTime);
-                isNewBest = true;
+        function handlePuzzleCompletion() {
+            const elapsedTime = Date.now() - startTime;
+            
+            const baseScore = currentScore;
+            const timeBonus = Math.max(0, Math.floor((SCORE_TIME_BONUS_PAR_SECONDS * 1000 - elapsedTime) / 1000) * SCORE_POINTS_PER_SECOND_BONUS);
+            const hintPenalty = hintsUsed * SCORE_HINT_PENALTY;
+            
+            let difficultyMultiplier = 0;
+            switch(difficultySelect.value) {
+                case 'medium': difficultyMultiplier = 0.2; break;
+                case 'hard': difficultyMultiplier = 0.5; break;
             }
+            const difficultyBonus = Math.round(baseScore * difficultyMultiplier);
+            const finalScore = baseScore + difficultyBonus + timeBonus - hintPenalty;
 
-            const updatedBestTime = localStorage.getItem(puzzleConfigKey);
+            // Time records
+            const bestTime = localStorage.getItem(puzzleConfigKey_time);
+            let isNewBestTime = false;
+            if (bestTime === null || elapsedTime < parseInt(bestTime, 10)) {
+                localStorage.setItem(puzzleConfigKey_time, elapsedTime);
+                isNewBestTime = true;
+            }
+            const updatedBestTime = localStorage.getItem(puzzleConfigKey_time);
 
-            document.getElementById('your-time').textContent = `Your time: ${formatTime(yourTime)}`;
-            document.getElementById('best-time').textContent = `Best time: ${formatTime(updatedBestTime)}`;
-            document.getElementById('new-best-time').textContent = isNewBest ? 'New Best Time!' : '';
+            // Score records
+            const bestScore = localStorage.getItem(puzzleConfigKey_score);
+            let isNewBestScore = false;
+            if (bestScore === null || finalScore > parseInt(bestScore, 10)) {
+                localStorage.setItem(puzzleConfigKey_score, finalScore);
+                isNewBestScore = true;
+            }
+            const updatedBestScore = localStorage.getItem(puzzleConfigKey_score);
+
+            // Update modal UI
+            document.getElementById('your-time').textContent = formatTime(elapsedTime);
+            document.getElementById('best-time').textContent = formatTime(parseInt(updatedBestTime, 10));
+            document.getElementById('new-best-time').textContent = isNewBestTime ? 'New Best Time!' : '';
+
+            document.getElementById('score-base').textContent = `+${baseScore}`;
+            document.getElementById('score-difficulty-bonus').textContent = `+${difficultyBonus}`;
+            document.getElementById('score-hint-penalty').textContent = `-${hintPenalty}`;
+            document.getElementById('best-score').textContent = updatedBestScore || '0';
+            document.getElementById('new-best-score').textContent = isNewBestScore ? 'New Best Score!' : '';
+            document.getElementById('score-time-bonus').textContent = `+${timeBonus}`;
+            
+            document.getElementById('score-final').textContent = finalScore;
             
             showCompletionModal();
         }
@@ -936,6 +841,16 @@
         } else {
             setTheme('light');
         }
+        
+        // Hint keyboard shortcut
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'h' && !e.target.matches('input')) {
+                const hintBtn = document.getElementById('hint-btn');
+                if (!hintBtn.disabled) {
+                    giveHint();
+                }
+            }
+        });
 
         // Mouse Events
         gridElement.addEventListener('mousedown', (e) => {
@@ -972,6 +887,18 @@
                 debounceTimeout = setTimeout(updateGridDisplay, 100);
             }
         });
+        
+        // --- PDF & BOOK GENERATION (Dummy functions if not fully implemented) ---
+        function downloadPdf() {
+            alert('PDF generation is a complex feature. This button is a placeholder!');
+        }
+        function downloadBook() {
+            alert('Book generation is a complex feature. This button is a placeholder!');
+        }
+        function cancelBookGeneration() {
+            isGeneratingBook = false;
+        }
+
     </script>
 </body>
 </html>
