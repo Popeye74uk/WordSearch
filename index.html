@@ -254,7 +254,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.8</div>
+        <div id="version-info">v8.9</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -335,9 +335,15 @@
             const apiMaxResults = 500;
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
             
+            const updateLoader = (text) => {
+                if (!isGeneratingBook) {
+                    setUiLoading(true, text);
+                }
+            };
+            
             if (hasCustomTheme) {
                 if (PROFANITY_SET.has(customTheme.toLowerCase())) throw new Error(`Theme '${customTheme}' is not permitted.`);
-                if (!isGeneratingBook) loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
+                updateLoader(`Finding words for theme: ${customTheme.toUpperCase()}`);
                 try {
                     const response = await fetch(`https://api.datamuse.com/words?ml=${customTheme}&max=${apiMaxResults}&md=p`);
                     if (!response.ok) throw new Error('API Failed');
@@ -354,7 +360,7 @@
             } else {
                 const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                    if (!isGeneratingBook) { loaderText.textContent = `Finding a theme... (Attempt ${attempt}/${maxRetries})`; }
+                    updateLoader(`Finding a theme... (Attempt ${attempt}/${maxRetries})`);
                     try {
                         let response = await fetch(`https://api.datamuse.com/words?sp=${letters[Math.floor(Math.random()*letters.length)]}*&max=500`);
                         if (!response.ok) continue;
@@ -587,18 +593,6 @@
         function hideCustomOptions() { mainControls.style.display = 'grid'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
         function showBookOptions() { mainControls.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function resetBookUI() { mainControls.style.display = 'grid'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
-        
-        function setUiLoading(isLoading, text = '') {
-            if (isLoading) {
-                loader.classList.remove('hidden');
-                loaderText.textContent = text;
-                cancelBtn.style.display = 'none'; 
-                gridWrapper.style.visibility = 'hidden';
-                wordListContainer.style.visibility = 'hidden';
-            } else {
-                loader.classList.add('hidden');
-            }
-        }
         
         function updatePuzzleParameters() {
             gridSize = parseInt(gridSizeSelect.value, 10);
@@ -855,12 +849,8 @@
             const bookTitle = document.getElementById('book-title-input').value.trim();
             const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
             
-            gridWrapper.style.visibility = 'hidden';
-            wordListContainer.style.visibility = 'hidden';
-            statusElement.textContent = '';
             isGeneratingBook = true;
             setUiLoading(true, 'Starting book generation...');
-            loaderTimeElement.textContent = '';
             loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
             cancelBtn.style.display = 'block';
             cancelBtn.disabled = false;
@@ -883,16 +873,13 @@
                 }
 
                 for (let i = 1; i <= puzzleCount; i++) {
-                    if (!isGeneratingBook) {
-                        statusElement.textContent = "Book generation cancelled.";
-                        throw new Error("Cancelled");
-                    }
-                    // v8.8: FIX - Added the UI feedback logic back into the loop
+                    if (!isGeneratingBook) throw new Error("Cancelled");
+                    
                     const remaining = puzzleCount - i + 1;
                     const timeEstimate = Math.round(remaining * (delay / 1000));
-                    loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`;
-                    loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
-                    
+                    setUiLoading(true, `Generating Puzzle ${i} of ${puzzleCount}...`, `Estimated time remaining: ${timeEstimate} seconds`);
+                    await new Promise(resolve => setTimeout(resolve, 20));
+
                     updatePuzzleParameters();
                     const rawData = await generatePuzzleData(false);
                     const { grid, placedDetails } = placeWordsOnGrid(rawData.puzzleWords);
@@ -912,8 +899,7 @@
                 }
 
                 if (includeAnswerKey && allPuzzlesData.length > 0) {
-                    loaderText.textContent = "Generating Answer Key...";
-                    loaderTimeElement.textContent = '';
+                    setUiLoading(true, "Generating Answer Key...");
                     await new Promise(resolve => setTimeout(resolve, 50));
                     drawAnswerKey(doc, allPuzzlesData, includePageNumbers);
                 }
@@ -922,7 +908,9 @@
                 doc.save(`${safeTitle}.pdf`);
                 statusElement.textContent = "Book successfully generated!";
             } catch (error) {
-                if (error.message !== "Cancelled") {
+                if (error.message === "Cancelled") {
+                    statusElement.textContent = "Book generation cancelled.";
+                } else {
                     statusElement.textContent = `Error: ${error.message}`;
                 }
             } finally {
