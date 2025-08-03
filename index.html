@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.20</title> <!-- v8.20 Change: Version updated -->
+    <title>Word Search Generator v8.21</title> <!-- v8.21 Change: Version updated -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -49,7 +49,6 @@
             --color-modal-content-bg: #2c2c2c;
             --color-box-shadow: rgba(0,0,0,0.3);
             --color-box-shadow-hover: rgba(0,0,0,0.4);
-            /* v8.20 FIX: New selection color for dark mode */
             --color-selecting-bg: #3a5a78;
         }
 
@@ -71,10 +70,7 @@
         #grid div.selecting { background-color: var(--color-selecting-bg); }
         #grid div.hint-reveal { background-color: var(--color-info); color: white; }
         
-        /* v8.20 FIX: Ensure loader background matches main background in dark mode */
-        body.dark-mode .loader {
-            background-color: var(--color-background);
-        }
+        body.dark-mode .loader { background-color: var(--color-background); }
         .loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-container-bg); display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 15px; z-index: 10; font-size: 1.1em; color: var(--color-text-secondary); border-radius: 4px; }
         .loader.hidden { opacity: 0; pointer-events: none; }
         #loader-time { font-size: 0.9em; font-style: italic; color: var(--color-text-secondary); }
@@ -83,6 +79,14 @@
         
         #word-list-container { width: fit-content; margin: 20px auto 0 auto; }
         #word-list-container h3 { text-align: center; margin-top: 0; color: var(--color-heading); }
+        /* v8.21: Styling for the word counter */
+        #word-counter {
+            font-weight: normal;
+            color: var(--color-text-secondary);
+            font-size: 0.9em;
+            margin-left: 8px;
+        }
+
         #words { list-style-type: none; padding: 0; margin: 0; display: grid; grid-auto-flow: column; gap: 0 40px; }
         #words li { padding: 4px 0; text-transform: uppercase; font-size: 0.95em; color: var(--color-text-primary); text-align: left; transition: color 0.3s, text-decoration 0.3s; }
         #words li.found { text-decoration: line-through; color: var(--color-text-secondary); }
@@ -175,7 +179,8 @@
             </div>
         </div>
         <div id="word-list-container">
-            <h3>Words to Find:</h3>
+            <!-- v8.21: Added span for word counter -->
+            <h3>Words to Find: <span id="word-counter"></span></h3>
             <ul id="words"></ul>
         </div>
         
@@ -242,7 +247,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.20</div> <!-- v8.20 Change: Version number incremented -->
+        <div id="version-info">v8.21</div> <!-- v8.21 Change: Version number incremented -->
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -279,7 +284,8 @@
               globalOptionsContainer = document.getElementById('global-options-container'),
               gridWrapper = document.getElementById('grid-wrapper'), wordListContainer = document.getElementById('word-list-container'),
               dynamicGridStyles = document.getElementById('dynamic-grid-styles'),
-              completionModal = document.getElementById('completion-modal');
+              completionModal = document.getElementById('completion-modal'),
+              wordCounterElement = document.getElementById('word-counter'); // v8.21: Get counter element
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
@@ -432,6 +438,7 @@
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
                 themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
                 updateGridDisplay();
+                updateWordCounter(); // v8.21: Update counter on new puzzle
                 const wordsForList = placedWordDetails.map(p => p.word).sort();
                 wordListElement.innerHTML = '';
                 wordsForList.forEach((word, index) => {
@@ -485,6 +492,15 @@
             redrawGridStyles();
         }
         
+        // v8.21: New function to update the word counter
+        function updateWordCounter() {
+            if (wordCounterElement && placedWordDetails.length > 0) {
+                wordCounterElement.textContent = `(${foundWords.size} / ${placedWordDetails.length})`;
+            } else if (wordCounterElement) {
+                wordCounterElement.textContent = '';
+            }
+        }
+
         function redrawGridStyles() {
             const allCells = gridElement.querySelectorAll('div[data-x]');
             allCells.forEach(cell => {
@@ -514,6 +530,7 @@
             placedWordDetails.forEach(detail => foundWords.add(detail.word));
             activeHintCoords = null; 
             redrawGridStyles();
+            updateWordCounter(); // v8.21: Update counter on reveal
             revealBtn.disabled = true;
             document.getElementById('hint-btn').disabled = true;
         }
@@ -790,6 +807,7 @@
 
             if (foundDetail) {
                 foundWords.add(foundDetail.word);
+                updateWordCounter(); // v8.21: Update counter on word find
                 const wordListItem = wordListElement.querySelector(`[data-word='${foundDetail.word}']`);
                 if (wordListItem) wordListItem.classList.add('found');
                 
@@ -910,4 +928,4 @@
         });
     </script>
 </body>
-</html>
+</html>```
