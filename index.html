@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v7.1</title>
+    <title>Word Search Generator v7.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -73,7 +73,7 @@
             <ul id="words"></ul>
         </div>
         
-        <div class="global-options-container">
+        <div class="global-options-container" id="global-options-container">
             <label for="grid-size-select"><b>Grid Size:</b></label>
             <select id="grid-size-select" onchange="handleGlobalOptionChange()">
                 <option value="15">15x15</option>
@@ -132,14 +132,14 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v7.1</div>
+        <div id="version-info">v7.2</div>
     </div>
     
     <script>
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
-        let debounceTimeout; // v7.1 For auto-generation
+        let debounceTimeout;
 
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
@@ -150,7 +150,8 @@
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
               gridSizeSelect = document.getElementById('grid-size-select'), mainControls = document.getElementById('main-controls'),
               initialBookControls = document.getElementById('initial-book-controls'), advancedOptionsPanel = document.getElementById('advanced-options-panel'),
-              generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn');
+              generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
+              globalOptionsContainer = document.getElementById('global-options-container');
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
@@ -267,7 +268,9 @@
             wordListElement.innerHTML = ''; themeTitleElement.textContent = ''; themeDefinitionElement.textContent = '';
             
             if (isFromCustomPanel && customThemeInput.value.trim() === '') {
-                isFromCustomPanel = false;
+                alert("Please enter a Custom Theme to generate a puzzle.");
+                setUiLoading(false);
+                return;
             }
             
             try {
@@ -293,7 +296,10 @@
                 statusElement.textContent = error.message;
             } finally {
                 setUiLoading(false);
-                if (isFromCustomPanel) hideCustomOptions();
+                if (isFromCustomPanel) {
+                    customThemeInput.value = '';
+                    hideCustomOptions();
+                }
             }
         }
 
@@ -411,10 +417,11 @@
             });
         }
 
-        function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; }
-        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; }
-        function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; }
-        function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; }
+        // --- v7.2 UI Functions Updated ---
+        function showCustomOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
+        function hideCustomOptions() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; advancedOptionsPanel.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
+        function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
+        function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
 
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
@@ -497,12 +504,11 @@
         function cancelBookGeneration() { isGeneratingBook = false; }
         function updatePuzzleParameters() { gridSize = parseInt(gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
         
-        // --- v7.1 New Function for Auto-Generation ---
         function handleGlobalOptionChange() {
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => {
                 generatePuzzle();
-            }, 500); // Wait 500ms after the last change before generating
+            }, 500); 
         }
 
         window.addEventListener('load', generatePuzzle);
