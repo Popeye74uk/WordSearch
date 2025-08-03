@@ -410,7 +410,7 @@
                     const prefix = entry.isAnswerKey ? 'Answer Key' : `${entry.puzzleNum}: ${entry.text}`;
                     
                     const pageNumWidth = doc.getStringUnitWidth(pageNumText) * doc.getFontSize() / doc.internal.scaleFactor;
-                    const availableWidth = colWidth - pageNumWidth - 5;
+                    const availableWidth = colWidth - pageNumWidth - 5; 
                     
                     let truncatedText = doc.splitTextToSize(prefix, availableWidth)[0];
 
@@ -489,7 +489,7 @@
         function showBookOptions() { mainControls.style.display = 'none'; initialBookControls.style.display = 'none'; advancedOptionsPanel.style.display = 'none'; generateBookControls.style.display = 'block'; globalOptionsContainer.style.display = 'none';}
         function resetBookUI() { mainControls.style.display = 'grid'; initialBookControls.style.display = 'block'; generateBookControls.style.display = 'none'; globalOptionsContainer.style.display = 'flex';}
 
-        // --- v8.1 Majorly Refactored Function ---
+        // --- v8.2 Majorly Refactored Function ---
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
@@ -507,7 +507,6 @@
             
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            doc.deletePage(1); // Start with a clean slate
             const allPuzzlesData = [];
             
             try {
@@ -525,6 +524,8 @@
                 loaderText.textContent = 'Assembling PDF Book...';
                 loaderTimeElement.textContent = '';
                 await new Promise(resolve => setTimeout(resolve, 50));
+
+                doc.deletePage(1); // Start with a completely clean slate
 
                 if (bookTitle) {
                     doc.addPage();
