@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.36</title> <!-- v8.36 Change: Version updated -->
+    <title>Word Search Generator v8.7</title> <!-- v8.7: Integrated advanced PDF/Book generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -28,7 +28,7 @@
             --color-success: #28a745;
             --color-danger: #dc3545;
             --color-warning: #fd7e14;
-            --color-info: #6f42c1; /* Hint color */
+            --color-info: #6f42c1;
             --color-pink: #d63384;
             --color-revealed-bg: #ffc107;
             --color-revealed-text: #000;
@@ -143,7 +143,7 @@
     
         @media (max-width: 768px) {
             .controls-grid, .options-panel-grid, .book-options-grid { grid-template-columns: 1fr; }
-            .options-panel-grid label, .book-options-grid label { text-align: left; margin-left: 5px; }
+            .options-panel-grid label, .book-options-grid label { text-align: right; }
             .global-options-container { flex-direction: column; gap: 15px; align-items: center; max-width: 415px; margin-left: auto; margin-right: auto; }
             .option-group { width: 100%; justify-content: space-between; }
             .option-group select { padding: 8px; font-size: 0.9em; }
@@ -254,7 +254,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.36</div> <!-- v8.36 Change: Version number incremented -->
+        <div id="version-info">v8.7</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -330,7 +330,7 @@
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
 
         async function generatePuzzleData(isFromCustomPanel = false) {
-            updatePuzzleParameters(); // This now sets the correct word count
+            updatePuzzleParameters();
             const customTheme = sanitizeWord(customThemeInput.value.trim());
             const apiMaxResults = 500;
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
@@ -592,7 +592,7 @@
             if (isLoading) {
                 loader.classList.remove('hidden');
                 loaderText.textContent = text;
-                cancelBtn.style.display = 'none';
+                cancelBtn.style.display = 'none'; 
                 gridWrapper.style.visibility = 'hidden';
                 wordListContainer.style.visibility = 'hidden';
             } else {
@@ -600,22 +600,12 @@
             }
         }
         
-        // v8.36: Implemented specific word counts for each grid size.
         function updatePuzzleParameters() {
             gridSize = parseInt(gridSizeSelect.value, 10);
-            
             switch(gridSize) {
-                case 15:
-                    wordCount = 10;
-                    break;
-                case 20:
-                    wordCount = 15;
-                    break;
-                case 25:
-                    wordCount = 20;
-                    break;
-                default: // Fallback for any unexpected grid size
-                    wordCount = 15; 
+                case 15: wordCount = 10; break;
+                case 25: wordCount = 20; break;
+                default: wordCount = 15; 
             }
         }
 
@@ -642,13 +632,13 @@
             let dir = {x: 0, y: 0};
             if (dx === 0 && dy === 0) {
                 return [startCell];
-            } else if (dx === 0) { // Vertical
+            } else if (dx === 0) {
                 dir = { x: 0, y: Math.sign(dy) };
-            } else if (dy === 0) { // Horizontal
+            } else if (dy === 0) {
                 dir = { x: Math.sign(dx), y: 0 };
-            } else if (Math.abs(dx) === Math.abs(dy)) { // Diagonal
+            } else if (Math.abs(dx) === Math.abs(dy)) {
                 dir = { x: Math.sign(dx), y: Math.sign(dy) };
-            } else { // Not a straight line, invalid path for word search
+            } else {
                 return [startCell];
             }
 
@@ -727,32 +717,23 @@
         function giveHint() {
             const hintBtn = document.getElementById('hint-btn');
             if (hintBtn.disabled) return;
-
             hintBtn.disabled = true;
-            
             if (activeHintCoords) {
                 setTimeout(() => { hintBtn.disabled = false; }, 1000);
                 return;
             }
-
             const unfoundWords = placedWordDetails.filter(detail => !foundWords.has(detail.word));
             if (unfoundWords.length === 0) {
                 hintBtn.disabled = true;
                 return;
             }
-            
             hintsUsed++;
             const wordToHint = unfoundWords[Math.floor(Math.random() * unfoundWords.length)];
             const startLocation = wordToHint.locations[0];
-
             activeHintCoords = { x: startLocation.x, y: startLocation.y };
             redrawGridStyles();
             
-            setTimeout(() => {
-                if(foundWords.size < placedWordDetails.length) {
-                    hintBtn.disabled = false;
-                }
-            }, 1000);
+            setTimeout(() => { if(foundWords.size < placedWordDetails.length) { hintBtn.disabled = false; } }, 1000);
         }
 
         function formatTime(milliseconds) {
@@ -765,11 +746,9 @@
 
         function handlePuzzleCompletion() {
             const elapsedTime = Date.now() - startTime;
-            
             const baseScore = currentScore;
             const timeBonus = Math.max(0, Math.floor((SCORE_TIME_BONUS_PAR_SECONDS * 1000 - elapsedTime) / 1000) * SCORE_POINTS_PER_SECOND_BONUS);
             const hintPenalty = hintsUsed * SCORE_HINT_PENALTY;
-            
             let difficultyMultiplier = 0;
             switch(difficultySelect.value) {
                 case 'medium': difficultyMultiplier = 0.2; break;
@@ -797,14 +776,12 @@
             document.getElementById('your-time').textContent = formatTime(elapsedTime);
             document.getElementById('best-time').textContent = formatTime(parseInt(updatedBestTime, 10));
             document.getElementById('new-best-time').textContent = isNewBestTime ? 'New Best Time!' : '';
-
             document.getElementById('score-base').textContent = `+${baseScore}`;
             document.getElementById('score-difficulty-bonus').textContent = `+${difficultyBonus}`;
             document.getElementById('score-hint-penalty').textContent = `-${hintPenalty}`;
             document.getElementById('best-score').textContent = updatedBestScore || '0';
             document.getElementById('new-best-score').textContent = isNewBestScore ? 'New Best Score!' : '';
             document.getElementById('score-time-bonus').textContent = `+${timeBonus}`;
-            
             document.getElementById('score-final').textContent = finalScore;
             
             showCompletionModal();
@@ -815,83 +792,244 @@
             document.getElementById('hint-btn').disabled = true;
             document.getElementById('reveal-btn').disabled = true;
         }
-        function hideCompletionModal() {
-            completionModal.classList.remove('visible');
-        }
+        function hideCompletionModal() { completionModal.classList.remove('visible'); }
 
-        // --- THEME TOGGLE ---
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
-
         function setTheme(theme) {
-            if (theme === 'dark') {
-                document.body.classList.add('dark-mode');
-            } else {
-                document.body.classList.remove('dark-mode');
-            }
+            if (theme === 'dark') { document.body.classList.add('dark-mode'); } 
+            else { document.body.classList.remove('dark-mode'); }
             localStorage.setItem('theme', theme);
         }
-
         themeToggleBtn.addEventListener('click', () => {
-            const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const newTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
             setTheme(newTheme);
         });
-
         const savedTheme = localStorage.getItem('theme');
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (savedTheme) {
-            setTheme(savedTheme);
-        } else if (prefersDark) {
-            setTheme('dark');
-        } else {
-            setTheme('light');
-        }
+        if (savedTheme) { setTheme(savedTheme); } 
+        else if (prefersDark) { setTheme('dark'); } 
+        else { setTheme('light'); }
         
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'h' && !e.target.matches('input')) {
                 const hintBtn = document.getElementById('hint-btn');
-                if (!hintBtn.disabled) {
-                    giveHint();
-                }
+                if (!hintBtn.disabled) { giveHint(); }
             }
         });
 
-        gridElement.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
-            handleInteractionStart(e.target.closest('div[data-x]'));
-        });
+        gridElement.addEventListener('mousedown', (e) => { if (e.button === 0) handleInteractionStart(e.target.closest('div[data-x]')); });
         gridElement.addEventListener('mouseover', (e) => handleInteractionMove(e.target.closest('div[data-x]')));
-        document.addEventListener('mouseup', (e) => {
-            if (e.button === 0) handleInteractionEnd();
-        });
-
-        gridElement.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
-            handleInteractionStart(targetCell ? targetCell.closest('div[data-x]') : null);
-        }, { passive: false });
-
-        gridElement.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
-            handleInteractionMove(targetCell ? targetCell.closest('div[data-x]') : null);
-        }, { passive: false });
-        
+        document.addEventListener('mouseup', (e) => { if (e.button === 0) handleInteractionEnd(); });
+        gridElement.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.touches[0]; const c = document.elementFromPoint(t.clientX, t.clientY); handleInteractionStart(c ? c.closest('div[data-x]') : null); }, { passive: false });
+        gridElement.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.touches[0]; const c = document.elementFromPoint(t.clientX, t.clientY); handleInteractionMove(c ? c.closest('div[data-x]') : null); }, { passive: false });
         gridElement.addEventListener('touchend', handleInteractionEnd);
         gridElement.addEventListener('touchcancel', handleInteractionEnd);
-
         window.addEventListener('load', () => generatePuzzle(false));
-        window.addEventListener('resize', () => {
-            if (currentGridState.length > 0) {
-                clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(updateGridDisplay, 100);
-            }
-        });
+        window.addEventListener('resize', () => { if (currentGridState.length > 0) { clearTimeout(debounceTimeout); debounceTimeout = setTimeout(updateGridDisplay, 100); } });
         
-        function downloadPdf() { alert('PDF generation is a placeholder.'); }
-        function downloadBook() { alert('Book generation is a placeholder.'); }
+        // --- v8.7: PDF & BOOK GENERATION LOGIC FROM v8.6 ---
+        
+        function downloadPdf() {
+            if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const definitionText = themeDefinitionElement.textContent.replace(/"/g, '');
+            const puzzleData = {
+                theme: currentTheme,
+                definition: definitionText,
+                grid: currentGridState,
+                placedDetails: placedWordDetails
+            };
+            drawPuzzleOnPdfPage(doc, puzzleData, null, false);
+            doc.save(`Word-Search-${sanitizeWord(currentTheme)}.pdf`);
+        }
+
+        async function downloadBook() {
+            const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
+            if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) {
+                alert("Please enter a number between 1 and 100.");
+                return;
+            }
+            const includeAnswerKey = document.getElementById('answer-key-checkbox').checked;
+            const includePageNumbers = document.getElementById('page-numbers-checkbox').checked;
+            const bookTitle = document.getElementById('book-title-input').value.trim();
+            const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
+            
+            gridWrapper.style.visibility = 'hidden';
+            wordListContainer.style.visibility = 'hidden';
+            statusElement.textContent = '';
+            isGeneratingBook = true;
+            setUiLoading(true, `Starting book generation...`);
+            loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            cancelBtn.style.display = 'block';
+            cancelBtn.disabled = false;
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            doc.deletePage(1); 
+
+            const delay = 850;
+            const allPuzzlesData = [];
+            
+            try {
+                if (bookTitle) {
+                    doc.addPage();
+                    const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
+                    doc.setFont('helvetica', 'bold').setFontSize(30).text(bookTitle, pageW/2, pageH/2 - 10, {align: 'center'});
+                    if (bookSubtitle) {
+                        doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
+                    }
+                }
+
+                for (let i = 1; i <= puzzleCount; i++) {
+                    if (!isGeneratingBook) {
+                        statusElement.textContent = "Book generation cancelled.";
+                        throw new Error("Cancelled");
+                    }
+                    const remaining = puzzleCount - i + 1;
+                    const timeEstimate = Math.round(remaining * (delay / 1000));
+                    loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`;
+                    loaderTimeElement.textContent = `Estimated time remaining: ${timeEstimate} seconds`;
+                    
+                    updatePuzzleParameters();
+                    const rawData = await generatePuzzleData(false);
+                    const { grid, placedDetails } = placeWordsOnGrid(rawData.puzzleWords);
+                    const puzzleData = {
+                        theme: rawData.theme,
+                        definition: rawData.definition,
+                        grid: grid,
+                        placedDetails: placedDetails
+                    };
+
+                    if (includeAnswerKey) { allPuzzlesData.push(puzzleData); }
+                    
+                    doc.addPage();
+                    drawPuzzleOnPdfPage(doc, puzzleData, i, includePageNumbers);
+
+                    if (i < puzzleCount) { await new Promise(resolve => setTimeout(resolve, delay)); }
+                }
+
+                if (includeAnswerKey && allPuzzlesData.length > 0) {
+                    loaderText.textContent = "Generating Answer Key...";
+                    loaderTimeElement.textContent = '';
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    drawAnswerKey(doc, allPuzzlesData, includePageNumbers);
+                }
+
+                const safeTitle = (sanitizeWord(bookTitle) || `Word-Search-Book-${puzzleCount}-Puzzles`).substring(0, 50);
+                doc.save(`${safeTitle}.pdf`);
+                statusElement.textContent = "Book successfully generated!";
+            } catch (error) {
+                if (error.message !== "Cancelled") {
+                    statusElement.textContent = `Error: ${error.message}`;
+                }
+            } finally {
+                isGeneratingBook = false;
+                setUiLoading(false);
+                resetBookUI();
+                generatePuzzle();
+            }
+        }
+
+        function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
+            const { theme, definition, grid, placedDetails } = puzzleData;
+            const currentGridSize = grid.length;
+            const currentWordCount = placedDetails.length;
+            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
+            let currentY = margin;
+            doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'});
+            currentY += 8;
+            doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${theme}`, pageW/2, currentY, {align:'center'});
+            currentY += 6;
+            if (definition && definition !== '(Custom Theme)') {
+                doc.setFont('helvetica', 'italic').setFontSize(10);
+                const defLines = doc.splitTextToSize(`"${definition}"`, pageW - (margin*2) - 20);
+                doc.text(defLines, pageW / 2, currentY, { align: 'center' });
+                currentY += (defLines.length * 3.5);
+            }
+            const gridTotalSize = 150, cellSize = gridTotalSize / currentGridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5;
+            const fontSize = currentGridSize === 25 ? 10 : (currentGridSize === 20 ? 12 : 14);
+            doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2);
+            doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
+            for (let y = 0; y < currentGridSize; y++) {
+                for (let x = 0; x < currentGridSize; x++) {
+                    doc.text(grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                }
+            }
+            const listStartY = startY + gridTotalSize + 12;
+            doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
+            doc.setFont('helvetica', 'normal').setFontSize(10);
+            const wordsForList = placedDetails.map(p => p.word).sort();
+            const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
+            const wordsPerCol = Math.ceil(currentWordCount / numCols);
+            const colWidths = Array(numCols).fill(0);
+            const gap = 15;
+            wordsForList.forEach((word, index) => {
+                const col = Math.floor(index / wordsPerCol);
+                const wordWidth = doc.getStringUnitWidth(`${index + 1}) ${word}`) * doc.getFontSize() / doc.internal.scaleFactor;
+                if (wordWidth > colWidths[col]) colWidths[col] = wordWidth;
+            });
+            const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (gap * (numCols - 1));
+            let listStartX = (pageW - totalListWidth) / 2;
+            wordsForList.forEach((word, index) => {
+                const col = Math.floor(index / wordsPerCol);
+                const row = index % wordsPerCol;
+                let xPos = listStartX;
+                for(let i=0; i<col; i++) { xPos += colWidths[i] + gap; }
+                const yPos = listStartY + 8 + (row * 6);
+                doc.text(`${index + 1}) ${word}`, xPos, yPos);
+            });
+            if (includePageNumbers && pageNum) {
+                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(pageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
+            }
+        }
+
+        function drawAnswerKey(doc, allPuzzlesData, includePageNumbers) {
+            doc.addPage();
+            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
+            doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
+            const puzzlesPerPage = 6, cols = 2, rows = 3;
+            const cellW = (pageW - margin*2) / cols, cellH = (pageH - margin*2 - 10) / rows;
+            allPuzzlesData.forEach((puzzleData, index) => {
+                if (index > 0 && index % puzzlesPerPage === 0) {
+                    doc.addPage();
+                    doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
+                }
+                const puzzleNumber = index + 1;
+                const i = index % puzzlesPerPage;
+                const col = i % cols, row = Math.floor(i / cols);
+                const startX = margin + col * cellW, startY = margin + 10 + row * cellH;
+                
+                let labelText = `Puzzle ${puzzleNumber}: ${puzzleData.theme}`;
+                
+                doc.setFont('helvetica', 'bold').setFontSize(10).text(labelText, startX + cellW/2, startY + 8, {align:'center'});
+                const currentGridSize = puzzleData.grid.length;
+                const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize;
+                const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
+                doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0);
+                for (let y = 0; y < currentGridSize; y++) {
+                    for (let x = 0; x < currentGridSize; x++) {
+                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                    }
+                }
+                doc.setFillColor(255, 193, 7, 0.7); // Semi-transparent yellow
+                puzzleData.placedDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F');
+                    });
+                });
+                doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0);
+                puzzleData.placedDetails.forEach(detail => {
+                    detail.locations.forEach(loc => {
+                        doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                    });
+                });
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.2);
+                doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
+            });
+        }
+        
         function cancelBookGeneration() { isGeneratingBook = false; }
 
     </script>
