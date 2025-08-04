@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v8.23</title> <!-- v8.23 Change: Version updated -->
+    <title>Word Search Generator v9.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -111,13 +111,16 @@
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: var(--color-text-secondary); }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: var(--color-grid-lines); }
         
+        /* v9.1: Styles for the new textarea */
+        .options-panel-grid textarea { min-height: 100px; padding: 8px; font-family: inherit; }
+        .or-divider { text-align: center; font-style: italic; color: var(--color-text-secondary); margin: 15px 0 5px 0; }
+        
         #completion-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-modal-bg); display: flex; justify-content: center; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
         #completion-modal.visible { opacity: 1; pointer-events: auto; }
         .modal-content { background-color: var(--color-modal-content-bg); padding: 40px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px var(--color-box-shadow); transform: scale(0.9); transition: transform 0.3s ease-in-out; }
         #completion-modal.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 2.5em; margin-top: 0; margin-bottom: 20px; color: var(--color-success); }
         .modal-content button { min-width: 150px; background-color: var(--color-primary); }
-        /* v8.23: Styles for completion time details */
         #completion-details { margin-bottom: 25px; font-size: 1.1em; color: var(--color-text-primary); }
         #completion-details p { margin: 5px 0; }
         #new-best-time { color: var(--color-warning); font-weight: bold; }
@@ -214,7 +217,13 @@
         <div id="advanced-options-panel">
             <h3>Custom Puzzle</h3>
             <div class="options-panel-grid">
-                <label for="custom-theme-input">Custom Theme:</label>
+                <!-- v9.1: New Textarea for custom word list -->
+                <label for="custom-words-input" style="align-self: start; margin-top: 8px;">Your Words:</label>
+                <textarea id="custom-words-input" placeholder="Enter your own words here, one per line. If this box is filled, the theme below will be ignored."></textarea>
+            </div>
+            <p class="or-divider">... or ...</p>
+            <div class="options-panel-grid">
+                <label for="custom-theme-input">Generate by Theme:</label>
                 <input type="text" id="custom-theme-input" placeholder="e.g. Animals, Space">
             </div>
             <div class="controls-grid">
@@ -246,13 +255,12 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v8.23</div> <!-- v8.23 Change: Version number incremented -->
+        <div id="version-info">v9.1</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
         <div class="modal-content">
             <h2>Congratulations!</h2>
-            <!-- v8.23: New container for time details -->
             <div id="completion-details">
                 <p id="your-time"></p>
                 <p id="best-time"></p>
@@ -268,7 +276,7 @@
         let isGeneratingBook = false;
         let debounceTimeout;
 
-        // v8.23: Variables for timer
+        // v9.0: Variables for timer
         let startTime;
         let puzzleConfigKey;
 
@@ -287,7 +295,8 @@
               loader = document.getElementById('loader'), loaderText = document.getElementById('loader-text'),
               loaderTimeElement = document.getElementById('loader-time'), themeTitleElement = document.getElementById('theme-title'),
               themeDefinitionElement = document.getElementById('theme-definition'), customThemeInput = document.getElementById('custom-theme-input'),
-              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'), // v8.23: Get difficulty select
+              customWordsInput = document.getElementById('custom-words-input'), // v9.1
+              gridSizeSelect = document.getElementById('grid-size-select'), difficultySelect = document.getElementById('difficulty-select'),
               mainControls = document.getElementById('main-controls'),
               advancedOptionsPanel = document.getElementById('advanced-options-panel'),
               generateBookControls = document.getElementById('generate-book-controls'), cancelBtn = document.getElementById('cancel-btn'),
@@ -302,10 +311,29 @@
         async function generatePuzzleData(isFromCustomPanel = false) {
             updatePuzzleParameters();
             const customTheme = customThemeInput.value.trim();
+            // v9.1: Get custom words
+            const customWordsRaw = customWordsInput.value;
+            const customWords = customWordsRaw.split('\n').map(w => w.trim()).filter(w => w.length > 0);
+
             const apiMaxResults = 500;
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
-            
-            if (hasCustomTheme) {
+            const hasCustomWords = isFromCustomPanel && customWords.length > 0;
+
+            // v9.1: Prioritize user's own word list
+            if (hasCustomWords) {
+                loaderText.textContent = `Using your custom word list...`;
+                const invalidWords = customWords.filter(w => w.length > gridSize);
+                if (invalidWords.length > 0) {
+                    throw new Error(`The following words are too long for a ${gridSize}x${gridSize} grid: ${invalidWords.join(', ')}`);
+                }
+                const puzzleWords = customWords.slice(0, 50); // Limit to 50 words max
+                const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
+                // Update wordCount to match how many words were actually provided and placed
+                wordCount = placedDetails.length;
+                return { theme: 'CUSTOM LIST', definition: `Your own curated words!`, grid, placedDetails };
+            } 
+            // Fallback to theme generation
+            else if (hasCustomTheme) {
                 if (PROFANITY_SET.has(customTheme.toLowerCase())) throw new Error(`Theme '${customTheme}' is not permitted.`);
                 loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
                 try {
@@ -322,6 +350,9 @@
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                     return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', grid, placedDetails };
                 } catch (error) { throw error; }
+            } else if(isFromCustomPanel) {
+                // v9.1: User is in the custom panel but provided no input
+                throw new Error("Please enter a list of words or a theme to generate a custom puzzle.");
             } else {
                 const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -374,7 +405,10 @@
                 case 'medium': directions = directions_medium; break;
                 default: directions = directions_hard; break;
             }
-            for (const word of words) {
+            // v9.1: Sort words from longest to shortest for better placement success
+            const sortedWords = words.sort((a, b) => b.length - a.length);
+
+            for (const word of sortedWords) {
                 const upperWord = word.toUpperCase();
                 let placed = false, attempts = 0;
                 while (!placed && attempts < 150) {
@@ -414,16 +448,10 @@
             foundWords.clear();
             activeHintCoords = null; 
             solvedHintCoords.clear(); 
-            startTime = null; // v8.23: Reset timer
+            startTime = null;
             
             document.getElementById('hint-btn').disabled = false;
             document.getElementById('reveal-btn').disabled = false;
-
-            if (isFromCustomPanel && customThemeInput.value.trim() === '') {
-                alert("Please enter a Custom Theme to generate a puzzle.");
-                setUiLoading(false);
-                return;
-            }
             
             try {
                 const puzzleData = await generatePuzzleData(isFromCustomPanel);
@@ -444,9 +472,9 @@
                 });
 
                 const difficulty = difficultySelect.value;
-                puzzleConfigKey = `${gridSize}-${difficulty}`; // v8.23: Set config key
+                puzzleConfigKey = `${gridSize}-${difficulty}`;
                 const statusThemeType = isFromCustomPanel ? 'Custom' : 'Random';
-                statusElement.textContent = `Source: ${statusThemeType} API | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
+                statusElement.textContent = `Source: ${statusThemeType} | Difficulty: ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`;
                 themeTitleElement.textContent = `Theme: ${currentTheme}`;
                 themeDefinitionElement.textContent = currentDefinition ? `"${currentDefinition}"` : '';
                 updateGridDisplay();
@@ -461,13 +489,15 @@
                 });
                 gridWrapper.style.visibility = 'visible';
                 wordListContainer.style.visibility = 'visible';
-                startTime = Date.now(); // v8.23: Start the timer!
+                startTime = Date.now();
             } catch (error) {
-                statusElement.textContent = error.message;
+                statusElement.textContent = `Error: ${error.message}`;
+                alert(error.message); // Give a popup for validation errors
             } finally {
                 setUiLoading(false);
                 if (isFromCustomPanel) {
                     customThemeInput.value = '';
+                    customWordsInput.value = ''; // v9.1: Clear the textarea
                     hideCustomOptions();
                 }
             }
@@ -486,12 +516,14 @@
             
             dynamicGridStyles.innerHTML = `#grid div { font-size: ${fontSize}px; line-height: ${cellSize}px; }`;
             
+            // v9.1: Use placedWordDetails.length instead of wordCount for accuracy with custom lists
+            const currentWordCount = placedWordDetails.length;
             let numCols = 3; 
-            if (wordCount > 15) numCols = 4; 
-            if (wordCount <= 10) numCols = 2;
+            if (currentWordCount > 15) numCols = 4; 
+            if (currentWordCount <= 10) numCols = 2;
             wordListElement.style.gridTemplateColumns = `repeat(${numCols}, auto)`;
             wordListElement.style.gridAutoFlow = 'column';
-            wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(wordCount/numCols)}, auto)`;
+            wordListElement.style.gridTemplateRows = `repeat(${Math.ceil(currentWordCount/numCols)}, auto)`;
 
             for (let y=0; y<gridSize; y++) { 
                 for (let x=0; x<gridSize; x++) { 
@@ -873,7 +905,6 @@
             }, 1000);
         }
 
-        // v8.23: New functions for timer and scoring
         function formatTime(milliseconds) {
             const totalSeconds = Math.floor(milliseconds / 1000);
             const minutes = Math.floor(totalSeconds / 60);
@@ -967,14 +998,8 @@
 
         // --- KEYBOARD SHORTCUTS ---
         document.addEventListener('keydown', (event) => {
-            // Check if the pressed key is 'h' (case-insensitive)
-            // We also check that the user isn't currently typing in an input field
-            if (event.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') {
-                
-                // Prevent the browser's default action for the key, if any
+            if (event.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
                 event.preventDefault();
-
-                // Call the existing giveHint function
                 giveHint();
             }
         });
