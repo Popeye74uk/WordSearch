@@ -584,7 +584,7 @@
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedWordDetails.map(p => p.word).sort();
+            const wordsForList = placedDetails.map(p => p.word).sort();
             const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
             const wordsPerCol = Math.ceil(currentWordCount / numCols);
             const colWidths = Array(numCols).fill(0);
@@ -964,6 +964,20 @@
         
         gridElement.addEventListener('touchend', handleInteractionEnd);
         gridElement.addEventListener('touchcancel', handleInteractionEnd);
+
+        // --- KEYBOARD SHORTCUTS ---
+        document.addEventListener('keydown', (event) => {
+            // Check if the pressed key is 'h' (case-insensitive)
+            // We also check that the user isn't currently typing in an input field
+            if (event.key.toLowerCase() === 'h' && document.activeElement.tagName !== 'INPUT') {
+                
+                // Prevent the browser's default action for the key, if any
+                event.preventDefault();
+
+                // Call the existing giveHint function
+                giveHint();
+            }
+        });
 
         window.addEventListener('load', () => generatePuzzle(false));
         window.addEventListener('resize', () => {
