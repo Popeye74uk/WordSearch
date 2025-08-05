@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.5</title>
+    <title>Word Search Generator v9.6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -69,9 +69,9 @@
         
         #game-board:fullscreen { display: flex; justify-content: center; align-items: center; gap: 30px; background-color: var(--color-board-bg); padding: 20px; box-sizing: border-box; }
         .fs-word-list { display: none; }
-        #game-board:fullscreen .fs-word-list { display: block; color: var(--color-text-primary); list-style-type: none; padding: 0 20px; margin: 0; }
-        #game-board:fullscreen .fs-word-list li { padding: 4px 0; text-transform: uppercase; font-size: 1.1em; }
-        #game-board:fullscreen .fs-word-list li.found { text-decoration: line-through; color: var(--color-text-secondary); }
+        #game-board:fullscreen .fs-word-list { display: block; list-style-type: none; padding: 0 20px; margin: 0; }
+        #game-board:fullscreen .fs-word-list li { padding: 4px 0; text-transform: uppercase; font-size: 1.1em; color: #e0e0e0; transition: color 0.3s; }
+        #game-board:fullscreen .fs-word-list li.found { text-decoration: line-through; color: #888; }
         #game-board:fullscreen #word-list-container { display: none; }
         
         #puzzle-container { display: flex; margin-top: 20px; justify-content: center; }
@@ -274,7 +274,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.5</div>
+        <div id="version-info">v9.6</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
