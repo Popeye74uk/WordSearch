@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.7</title>
+    <title>Word Search Generator v9.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -673,7 +673,7 @@
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
             doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedWordDetails.map(p => p.word).sort();
+            const wordsForList = placedDetails.map(p => p.word).sort();
             const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
             const wordsPerCol = Math.ceil(currentWordCount / numCols);
             const colWidths = Array(numCols).fill(0);
@@ -760,7 +760,7 @@
             const includePageNumbers = document.getElementById('page-numbers-checkbox').checked;
             const bookTitle = document.getElementById('book-title-input').value.trim();
             const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
-            ui.grid.innerHTML = ''; ui.wordList.innerHTML = ''; ui.themeTitle.textContent = ''; ui.themeDefinition.textContent = ''; ui.status.textContent = '';
+            
             isGeneratingBook = true;
             setUiLoading(true);
             ui.loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -770,11 +770,24 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
             doc.deletePage(1); 
-
-            const delay = 850;
-            const allPuzzlesData = [];
             
+            const allPuzzlesData = [];
+
             try {
+                // Phase 1: Gather all puzzle data
+                for (let i = 1; i <= puzzleCount; i++) {
+                    if (!isGeneratingBook) throw new Error("Cancelled");
+                    ui.loaderText.textContent = `Gathering data for puzzle ${i} of ${puzzleCount}...`;
+                    updatePuzzleParameters();
+                    const puzzleData = await generatePuzzleData(false);
+                    allPuzzlesData.push(puzzleData);
+                }
+
+                // Phase 2: Build the PDF
+                ui.loaderText.textContent = "Building your PDF book...";
+                document.getElementById('loader-time').textContent = '';
+                await new Promise(resolve => setTimeout(resolve, 50)); // Brief pause for UI update
+
                 if (bookTitle) {
                     doc.addPage();
                     const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
@@ -782,26 +795,15 @@
                     if (bookSubtitle) doc.setFont('helvetica', 'normal').setFontSize(16).text(bookSubtitle, pageW/2, pageH/2 + 5, {align: 'center'});
                 }
 
-                for (let i = 1; i <= puzzleCount; i++) {
-                    if (!isGeneratingBook) { ui.status.textContent = "Book generation cancelled."; return; }
-                    const remaining = puzzleCount - i + 1;
-                    const timeEstimate = Math.round(remaining * (delay / 1000));
-                    ui.loaderText.textContent = `Generating Puzzle ${i} of ${puzzleCount}...`;
-                    document.getElementById('loader-time').textContent = `Estimated time remaining: ${timeEstimate} seconds`;
-                    
-                    updatePuzzleParameters();
-                    const puzzleData = await generatePuzzleData(false);
-                    if (includeAnswerKey) allPuzzlesData.push(puzzleData);
-                    
+                allPuzzlesData.forEach((puzzleData, index) => {
+                    if (!isGeneratingBook) throw new Error("Cancelled");
                     doc.addPage();
-                    drawPuzzleOnPdfPage(doc, puzzleData, i, includePageNumbers);
-
-                    if (i < puzzleCount) await new Promise(resolve => setTimeout(resolve, delay));
-                }
-
-                if (includeAnswerKey && allPuzzlesData.length > 0) {
+                    drawPuzzleOnPdfPage(doc, puzzleData, index + 1, includePageNumbers);
+                });
+                
+                if (includeAnswerKey) {
+                    if (!isGeneratingBook) throw new Error("Cancelled");
                     ui.loaderText.textContent = "Generating Answer Key...";
-                    document.getElementById('loader-time').textContent = '';
                     await new Promise(resolve => setTimeout(resolve, 50));
                     drawAnswerKey(doc, allPuzzlesData, includePageNumbers);
                 }
@@ -809,8 +811,13 @@
                 const safeTitle = (bookTitle.replace(/[^a-zA-Z0-9]/g, '-') || `Word-Search-Book-${puzzleCount}-Puzzles`).substring(0, 50);
                 doc.save(`${safeTitle}.pdf`);
                 ui.status.textContent = "Book successfully generated!";
+
             } catch (error) {
-                ui.status.textContent = `Error: ${error.message}`;
+                if (error.message === "Cancelled") {
+                    ui.status.textContent = "Book generation cancelled.";
+                } else {
+                    ui.status.textContent = `Error: ${error.message}`;
+                }
             } finally {
                 isGeneratingBook = false;
                 setUiLoading(false);
