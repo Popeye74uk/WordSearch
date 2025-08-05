@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.1</title>
+    <title>Word Search Generator v9.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -264,7 +264,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.1</div>
+        <div id="version-info">v9.2</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -518,24 +518,27 @@
             
             const isFullscreen = !!document.fullscreenElement;
             let containerSize;
-            if (isFullscreen) {
-                containerSize = Math.min(window.innerWidth, window.innerHeight) - 40;
-            } else {
-                containerSize = Math.min(document.getElementById('puzzle-container').clientWidth, 800);
-            }
-
             const gap = 1;
-            let cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
-            const maxCellSize = 28;
-            cellSize = Math.min(maxCellSize, cellSize);
+            let cellSize;
 
+            if (isFullscreen) {
+                // In fullscreen, base the size on the window dimensions to fill the screen
+                containerSize = Math.min(window.innerWidth, window.innerHeight) - 40; // 20px padding on each side
+                cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
+            } else {
+                // In normal view, use the original logic to fit within the container
+                containerSize = document.getElementById('puzzle-container').clientWidth;
+                const maxCellSize = 28;
+                cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
+                cellSize = Math.min(maxCellSize, cellSize); // Cap the cell size in normal view
+            }
+            
             const fontSize = Math.max(8, Math.floor(cellSize * 0.65));
             gridElement.style.gridTemplateColumns = `repeat(${gridSize}, ${cellSize}px)`;
             gridElement.style.gridTemplateRows = `repeat(${gridSize}, ${cellSize}px)`;
             
             dynamicGridStyles.innerHTML = `#grid div { font-size: ${fontSize}px; line-height: ${cellSize}px; }`;
             
-            // v9.1: Use placedWordDetails.length instead of wordCount for accuracy with custom lists
             const currentWordCount = placedWordDetails.length;
             let numCols = 3; 
             if (currentWordCount > 15) numCols = 4; 
