@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.2</title>
+    <title>Word Search Generator v9.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -264,7 +264,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.2</div>
+        <div id="version-info">v9.3</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -321,7 +321,6 @@
         async function generatePuzzleData(isFromCustomPanel = false) {
             updatePuzzleParameters();
             const customTheme = customThemeInput.value.trim();
-            // v9.1: Get custom words
             const customWordsRaw = customWordsInput.value;
             const customWords = customWordsRaw.split('\n').map(w => w.trim()).filter(w => w.length > 0);
 
@@ -329,20 +328,17 @@
             const hasCustomTheme = isFromCustomPanel && customTheme !== '';
             const hasCustomWords = isFromCustomPanel && customWords.length > 0;
 
-            // v9.1: Prioritize user's own word list
             if (hasCustomWords) {
                 loaderText.textContent = `Using your custom word list...`;
                 const invalidWords = customWords.filter(w => w.length > gridSize);
                 if (invalidWords.length > 0) {
                     throw new Error(`The following words are too long for a ${gridSize}x${gridSize} grid: ${invalidWords.join(', ')}`);
                 }
-                const puzzleWords = customWords.slice(0, 50); // Limit to 50 words max
+                const puzzleWords = customWords.slice(0, 50);
                 const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
-                // Update wordCount to match how many words were actually provided and placed
                 wordCount = placedDetails.length;
                 return { theme: 'CUSTOM LIST', definition: `Your own curated words!`, grid, placedDetails };
             } 
-            // Fallback to theme generation
             else if (hasCustomTheme) {
                 if (PROFANITY_SET.has(customTheme.toLowerCase())) throw new Error(`Theme '${customTheme}' is not permitted.`);
                 loaderText.textContent = `Finding words for theme: ${customTheme.toUpperCase()}`;
@@ -360,9 +356,6 @@
                     const { grid, placedDetails } = placeWordsOnGrid(puzzleWords);
                     return { theme: customTheme.toUpperCase(), definition: '(Custom Theme)', grid, placedDetails };
                 } catch (error) { throw error; }
-            } else if(isFromCustomPanel) {
-                // v9.1: User is in the custom panel but provided no input
-                throw new Error("Please enter a list of words or a theme to generate a custom puzzle.");
             } else {
                 const maxRetries = 20, letters = "abcdefghijklmnopqrstuvwxyz";
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -502,12 +495,11 @@
                 startTime = Date.now();
             } catch (error) {
                 statusElement.textContent = `Error: ${error.message}`;
-                alert(error.message); // Give a popup for validation errors
             } finally {
                 setUiLoading(false);
                 if (isFromCustomPanel) {
                     customThemeInput.value = '';
-                    customWordsInput.value = ''; // v9.1: Clear the textarea
+                    customWordsInput.value = '';
                     hideCustomOptions();
                 }
             }
@@ -522,15 +514,13 @@
             let cellSize;
 
             if (isFullscreen) {
-                // In fullscreen, base the size on the window dimensions to fill the screen
-                containerSize = Math.min(window.innerWidth, window.innerHeight) - 40; // 20px padding on each side
+                containerSize = Math.min(window.innerWidth, window.innerHeight) - 40;
                 cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
             } else {
-                // In normal view, use the original logic to fit within the container
                 containerSize = document.getElementById('puzzle-container').clientWidth;
                 const maxCellSize = 28;
                 cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
-                cellSize = Math.min(maxCellSize, cellSize); // Cap the cell size in normal view
+                cellSize = Math.min(maxCellSize, cellSize);
             }
             
             const fontSize = Math.max(8, Math.floor(cellSize * 0.65));
@@ -1043,12 +1033,23 @@
             } else if (key === 'n') {
                 event.preventDefault();
                 generatePuzzle();
+            } else if (key === 'r') {
+                event.preventDefault();
+                revealWords();
             }
         });
 
         fullscreenBtn.addEventListener('click', toggleFullScreen);
         document.addEventListener('fullscreenchange', () => { if(currentGridState.length > 0) { clearTimeout(debounceTimeout); debounceTimeout = setTimeout(() => updateGridDisplay(), 100); } });
-        window.addEventListener('load', () => generatePuzzle(false));
+        
+        window.addEventListener('load', () => {
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            if (isTouchDevice) {
+                fullscreenBtn.style.display = 'none';
+            }
+            generatePuzzle(false);
+        });
+        
         window.addEventListener('resize', () => {
             if (currentGridState.length > 0 && !document.fullscreenElement) {
                 clearTimeout(debounceTimeout);
