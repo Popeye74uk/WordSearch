@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.8</title>
+    <title>Word Search Generator v10.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -285,28 +285,22 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.8</div>
+        <div id="version-info">v10.0</div>
     </div>
     
     <script>
+        // --- GLOBAL VARIABLES ---
         let gridSize = 20, wordCount = 15, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let placedWordDetails = [], currentGridState = [], currentTheme = '', currentDefinition = '';
         let isGeneratingBook = false;
         let debounceTimeout;
-
-        let startTime;
-        let puzzleConfigKey;
-
-        let isSelecting = false;
-        let selectionStartCell = null;
-        let selectionEndCell = null;
-        let foundWords = new Set();
-        let activeHintCoords = null; 
-        let solvedHintCoords = new Set();
+        let startTime, puzzleConfigKey;
+        let isSelecting = false, selectionStartCell = null, selectionEndCell = null;
+        let foundWords = new Set(), activeHintCoords = null, solvedHintCoords = new Set();
         let cellToWordMap = new Map();
-
         const PROFANITY_SET = new Set(typeof PROFANITY_WORDS !== 'undefined' ? PROFANITY_WORDS.map(w => w.toLowerCase()) : []);
 
+        // --- UI ELEMENT CACHE ---
         const ui = {
             grid: document.getElementById('grid'),
             wordList: document.getElementById('words'),
@@ -334,8 +328,9 @@
             hintBtn: document.getElementById('hint-btn')
         };
         
-        function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
+        // --- CORE PUZZLE GENERATION ---
 
+        // Fetches words from API or custom list, then generates the puzzle data.
         async function generatePuzzleData(isFromCustomPanel = false) {
             updatePuzzleParameters();
             const customTheme = ui.customThemeInput.value.trim();
@@ -414,7 +409,8 @@
                 throw new Error(`Failed to generate a random themed puzzle after ${maxRetries} attempts.`);
             }
         }
-
+        
+        // Places words onto the grid and fills the rest with random letters.
         function placeWordsOnGrid(words) {
             const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
             const placedDetails = [];
@@ -460,11 +456,12 @@
             for (let y=0; y<gridSize; y++) { for (let x=0; x<gridSize; x++) { if (grid[y][x] === '') grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)]; } }
             return { grid, placedDetails };
         }
-
-        function setUiLoading(isLoading, message = '') { document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); ui.loader.classList.toggle('hidden', !isLoading); ui.loaderText.textContent = message; }
         
+        // --- MAIN GAME FLOW ---
+        
+        // Main function to orchestrate puzzle creation and display.
         async function generatePuzzle(isFromCustomPanel = false) {
-            setUiLoading(true);
+            setUiLoading(true, "Generating Puzzle...");
             hideCompletionModal();
             ui.wordList.innerHTML = ''; ui.themeTitle.textContent = ''; ui.themeDefinition.textContent = '';
             foundWords.clear();
@@ -516,6 +513,16 @@
             }
         }
         
+        // --- UI & DISPLAY FUNCTIONS ---
+        
+        // Sets the loading overlay visibility and message.
+        function setUiLoading(isLoading, message = '') { 
+            document.querySelectorAll('button').forEach(btn => btn.disabled = isLoading); 
+            ui.loader.classList.toggle('hidden', !isLoading); 
+            ui.loaderText.textContent = message; 
+        }
+
+        // Populates the main and fullscreen word lists.
         function populateWordLists() {
             const wordsForList = placedWordDetails.map(p => p.word).sort();
             
@@ -540,29 +547,26 @@
             });
         }
         
+        // Updates found words with a line-through style.
         function updateWordListsStyles() {
             document.querySelectorAll('li[data-word]').forEach(li => {
-                if (foundWords.has(li.dataset.word)) {
-                    li.classList.add('found');
-                } else {
-                    li.classList.remove('found');
-                }
+                li.classList.toggle('found', foundWords.has(li.dataset.word));
             });
         }
 
+        // Redraws the grid and its cells based on current state.
         function updateGridDisplay() {
             ui.grid.innerHTML = '';
             
             const isFullscreen = !!document.fullscreenElement;
-            let containerSize;
             const gap = 1;
             let cellSize;
 
             if (isFullscreen) {
-                containerSize = Math.min(window.innerHeight * 0.9, window.innerWidth * 0.6); 
+                let containerSize = Math.min(window.innerHeight * 0.9, window.innerWidth * 0.6); 
                 cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
             } else {
-                containerSize = document.getElementById('puzzle-container').clientWidth;
+                let containerSize = document.getElementById('puzzle-container').clientWidth;
                 const maxCellSize = 28;
                 cellSize = Math.floor((containerSize - (gridSize - 1) * gap) / gridSize);
                 cellSize = Math.min(maxCellSize, cellSize);
@@ -594,6 +598,7 @@
             redrawGridStyles();
         }
         
+        // Updates the "found / total" word counter.
         function updateWordCounter() {
             if (ui.wordCounter && placedWordDetails.length > 0) {
                 ui.wordCounter.textContent = `(${foundWords.size} / ${placedWordDetails.length})`;
@@ -602,6 +607,7 @@
             }
         }
 
+        // Applies styles to grid cells (found words, hints).
         function redrawGridStyles() {
             const allCells = ui.grid.querySelectorAll('div[data-x]');
             allCells.forEach(cell => {
@@ -616,144 +622,15 @@
                 
                 cell.classList.remove('revealed', 'hint-reveal');
 
-                if (isSolvedHint) {
-                    cell.classList.add('hint-reveal'); 
-                } else if (isFound) {
-                    cell.classList.add('revealed');
-                } else if (isActiveHint) {
-                    cell.classList.add('hint-reveal');
-                }
+                if (isSolvedHint) cell.classList.add('hint-reveal'); 
+                else if (isFound) cell.classList.add('revealed');
+                else if (isActiveHint) cell.classList.add('hint-reveal');
             });
         }
         
-        function revealWords() { 
-            if (placedWordDetails.length === 0) return;
-            placedWordDetails.forEach(detail => foundWords.add(detail.word));
-            activeHintCoords = null; 
-            redrawGridStyles();
-            updateWordListsStyles();
-            updateWordCounter();
-            ui.revealBtn.disabled = true;
-            ui.hintBtn.disabled = true;
-        }
+        // --- BOOK & PDF GENERATION ---
         
-        function downloadPdf() {
-            if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const definitionText = ui.themeDefinition.textContent.replace(/"/g, '');
-            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, null, false);
-            doc.save(`Word-Search-${currentTheme}.pdf`);
-        }
-
-        function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
-            const { theme, definition, grid, placedDetails } = puzzleData;
-            const currentGridSize = grid.length;
-            const currentWordCount = placedDetails.length;
-            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
-            let currentY = margin;
-            doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'});
-            currentY += 8;
-            doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${theme}`, pageW/2, currentY, {align:'center'});
-            currentY += 6;
-            if (definition) {
-                doc.setFont('helvetica', 'italic').setFontSize(10);
-                const defLines = doc.splitTextToSize(`"${definition}"`, pageW - (margin*2) - 20);
-                doc.text(defLines, pageW / 2, currentY, { align: 'center' });
-                currentY += (defLines.length * 3.5);
-            }
-            const gridTotalSize = 150, cellSize = gridTotalSize / currentGridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5;
-            const fontSize = currentGridSize === 25 ? 10 : 12;
-            doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2);
-            doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
-            for (let y = 0; y < currentGridSize; y++) {
-                for (let x = 0; x < currentGridSize; x++) {
-                    doc.text(grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                }
-            }
-            const listStartY = startY + gridTotalSize + 12;
-            doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
-            doc.setFont('helvetica', 'normal').setFontSize(10);
-            const wordsForList = placedDetails.map(p => p.word).sort();
-            const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
-            const wordsPerCol = Math.ceil(currentWordCount / numCols);
-            const colWidths = Array(numCols).fill(0);
-            const gap = 15;
-            wordsForList.forEach((word, index) => {
-                const col = Math.floor(index / wordsPerCol);
-                const wordWidth = doc.getStringUnitWidth(word) * doc.getFontSize() / doc.internal.scaleFactor;
-                if (wordWidth > colWidths[col]) colWidths[col] = wordWidth;
-            });
-            const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (gap * (numCols - 1));
-            let listStartX = (pageW - totalListWidth) / 2;
-            wordsForList.forEach((word, index) => {
-                const col = Math.floor(index / wordsPerCol);
-                const row = index % wordsPerCol;
-                let xPos = listStartX;
-                for(let i=0; i<col; i++) { xPos += colWidths[i] + gap; }
-                const yPos = listStartY + 8 + (row * 6);
-                doc.text(word, xPos, yPos);
-            });
-            if (includePageNumbers && pageNum) {
-                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(pageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
-            }
-        }
-
-        function drawAnswerKey(doc, allPuzzlesData, includePageNumbers) {
-            doc.addPage();
-            const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 15;
-            doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
-            const puzzlesPerPage = 6, cols = 2, rows = 3;
-            const cellW = (pageW - margin*2) / cols, cellH = (doc.internal.pageSize.getHeight() - margin*2) / rows;
-            allPuzzlesData.forEach((puzzleData, index) => {
-                if (index > 0 && index % puzzlesPerPage === 0) {
-                    doc.addPage();
-                    doc.setFont('helvetica', 'bold').setFontSize(20).text("Answer Key", pageW/2, margin, {align:'center'});
-                }
-                const puzzleNumber = index + 1;
-                const i = index % puzzlesPerPage;
-                const col = i % cols, row = Math.floor(i / cols);
-                const startX = margin + col * cellW, startY = margin + row * cellH;
-                
-                let labelText = puzzleData.theme;
-                if (includePageNumbers) {
-                    labelText = `Puzzle ${puzzleNumber}: ${puzzleData.theme}`;
-                }
-                
-                doc.setFont('helvetica', 'bold').setFontSize(10).text(labelText, startX + cellW/2, startY + 8, {align:'center'});
-                const currentGridSize = puzzleData.grid.length;
-                const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize;
-                const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
-                doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0);
-                for (let y = 0; y < currentGridSize; y++) {
-                    for (let x = 0; x < currentGridSize; x++) {
-                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    }
-                }
-                doc.setFillColor(255, 193, 7);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F');
-                    });
-                });
-                doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    });
-                });
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.2);
-                doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
-            });
-        }
-
-        // --- UI State Functions ---
-        function showCustomOptions() { ui.mainControls.style.display = 'none'; ui.advancedOptionsPanel.style.display = 'block'; document.getElementById('global-options-container').style.display = 'flex';}
-        function hideCustomOptions() { ui.mainControls.style.display = 'grid'; ui.advancedOptionsPanel.style.display = 'none'; document.getElementById('global-options-container').style.display = 'flex';}
-        function showBookOptions() { ui.mainControls.style.display = 'none'; ui.generateBookControls.style.display = 'block'; document.getElementById('global-options-container').style.display = 'none';}
-        function resetBookUI() { ui.mainControls.style.display = 'grid'; ui.generateBookControls.style.display = 'none'; document.getElementById('global-options-container').style.display = 'flex';}
-
+        // Orchestrates the multi-phase book creation process.
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
             if (isNaN(puzzleCount) || puzzleCount < 1 || puzzleCount > 100) { alert("Please enter a number between 1 and 100."); return; }
@@ -763,7 +640,7 @@
             const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
             
             isGeneratingBook = true;
-            setUiLoading(true);
+            setUiLoading(true, "Preparing to generate book...");
             ui.loader.scrollIntoView({ behavior: 'smooth', block: 'center' });
             document.getElementById('cancel-btn').style.display = 'block';
             document.getElementById('cancel-btn').disabled = false;
@@ -832,48 +709,60 @@
             }
         }
 
-        function cancelBookGeneration() { isGeneratingBook = false; }
-        function updatePuzzleParameters() { gridSize = parseInt(ui.gridSizeSelect.value, 10); switch (gridSize) { case 15: wordCount = 10; break; case 25: wordCount = 20; break; default: wordCount = 15; } }
-        
-        function handleGlobalOptionChange() {
-            clearTimeout(debounceTimeout);
-            debounceTimeout = setTimeout(() => {
-                generatePuzzle();
-            }, 250);
-        }
-
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                ui.gameBoard.requestFullscreen().catch(err => {
-                    alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-                });
-            } else {
-                document.exitFullscreen();
+        // Draws a single puzzle page on a jsPDF document.
+        function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
+            const { theme, definition, grid, placedDetails } = puzzleData;
+            const pageW = doc.internal.pageSize.getWidth(), margin = 15;
+            let currentY = margin;
+            doc.setFont('helvetica', 'bold').setFontSize(16).text("Word Search Puzzle", pageW/2, currentY, {align:'center'});
+            currentY += 8;
+            doc.setFont('helvetica', 'normal').setFontSize(12).text(`Theme: ${theme}`, pageW/2, currentY, {align:'center'});
+            currentY += 6;
+            if (definition) {
+                doc.setFont('helvetica', 'italic').setFontSize(10);
+                const defLines = doc.splitTextToSize(`"${definition}"`, pageW - (margin*2) - 20);
+                doc.text(defLines, pageW / 2, currentY, { align: 'center' });
+                currentY += (defLines.length * 3.5);
+            }
+            const gridTotalSize = 150, cellSize = gridTotalSize / grid.length, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5;
+            const fontSize = grid.length === 25 ? 10 : 12;
+            doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2);
+            doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
+            for (let y = 0; y < grid.length; y++) {
+                for (let x = 0; x < grid.length; x++) {
+                    doc.text(grid[y][x], startX + (x*cellSize) + (cellSize/2), startY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
+                }
+            }
+            const listStartY = startY + gridTotalSize + 12;
+            doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
+            doc.setFont('helvetica', 'normal').setFontSize(10);
+            const wordsForList = placedDetails.map(p => p.word).sort();
+            const numCols = wordsForList.length > 15 ? 4 : (wordsForList.length <= 10 ? 2 : 3);
+            const wordsPerCol = Math.ceil(wordsForList.length / numCols);
+            const colWidths = Array(numCols).fill(0);
+            wordsForList.forEach((word, index) => {
+                const col = Math.floor(index / wordsPerCol);
+                const wordWidth = doc.getStringUnitWidth(word) * doc.getFontSize() / doc.internal.scaleFactor;
+                if (wordWidth > colWidths[col]) colWidths[col] = wordWidth;
+            });
+            const totalListWidth = colWidths.reduce((a, b) => a + b, 0) + (15 * (numCols - 1));
+            let listStartX = (pageW - totalListWidth) / 2;
+            wordsForList.forEach((word, index) => {
+                const col = Math.floor(index / wordsPerCol);
+                const row = index % wordsPerCol;
+                let xPos = listStartX;
+                for(let i=0; i<col; i++) { xPos += colWidths[i] + 15; }
+                const yPos = listStartY + 8 + (row * 6);
+                doc.text(word, xPos, yPos);
+            });
+            if (includePageNumbers && pageNum) {
+                doc.setFont('helvetica', 'normal').setFontSize(8).text(String(pageNum), pageW / 2, doc.internal.pageSize.getHeight() - (margin / 2), { align: 'center' });
             }
         }
-        
+
         // --- INTERACTIVE GRID LOGIC ---
-        function getCellsOnPath(startCell, endCell) {
-            if (!startCell || !endCell) return [];
-            
-            const startX = parseInt(startCell.dataset.x, 10), startY = parseInt(startCell.dataset.y, 10);
-            const endX = parseInt(endCell.dataset.x, 10), endY = parseInt(endCell.dataset.y, 10);
-            const dx = endX - startX, dy = endY - startY, cells = [];
-            
-            let dir = {x: 0, y: 0};
-            if (dx === 0 && dy === 0) return [startCell];
-            else if (Math.abs(dx) === Math.abs(dy)) dir = { x: Math.sign(dx), y: Math.sign(dy) };
-            else if (Math.abs(dx) > Math.abs(dy)) dir = { x: Math.sign(dx), y: 0 };
-            else dir = { x: 0, y: Math.sign(dy) };
-
-            const pathLength = Math.max(Math.abs(dx), Math.abs(dy));
-            for (let i = 0; i <= pathLength; i++) {
-                const cell = ui.grid.querySelector(`[data-x='${startX + i * dir.x}'][data-y='${startY + i * dir.y}']`);
-                if (cell) cells.push(cell);
-            }
-            return cells;
-        }
-
+        
+        // Handles start of a word selection (mousedown/touchstart).
         function handleInteractionStart(targetCell) {
             if (!targetCell) return;
             isSelecting = true;
@@ -882,6 +771,7 @@
             selectionStartCell.classList.add('selecting');
         }
         
+        // Handles dragging over the grid to select a word.
         function handleInteractionMove(targetCell) {
             if (!isSelecting || !selectionStartCell || !targetCell) return;
             selectionEndCell = targetCell;
@@ -891,6 +781,7 @@
             pathCells.forEach(c => c.classList.add('selecting'));
         }
 
+        // Handles end of a word selection, checks if correct.
         function handleInteractionEnd() {
             if (!isSelecting) return;
             isSelecting = false;
@@ -934,6 +825,9 @@
             selectionEndCell = null;
         }
 
+        // --- GAMEPLAY HELPER FUNCTIONS ---
+        
+        // Reveals the first letter of an unfound word.
         function giveHint() {
             ui.hintBtn.disabled = true;
             if (activeHintCoords) { setTimeout(() => { ui.hintBtn.disabled = false; }, 1000); return; }
@@ -945,8 +839,19 @@
             setTimeout(() => { ui.hintBtn.disabled = false; }, 1000);
         }
 
-        function formatTime(milliseconds) { const s = Math.floor(milliseconds / 1000); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+        // Reveals all words on the grid.
+        function revealWords() { 
+            if (placedWordDetails.length === 0) return;
+            placedWordDetails.forEach(detail => foundWords.add(detail.word));
+            activeHintCoords = null; 
+            redrawGridStyles();
+            updateWordListsStyles();
+            updateWordCounter();
+            ui.revealBtn.disabled = true;
+            ui.hintBtn.disabled = true;
+        }
 
+        // Shows the completion modal with time and records.
         function handlePuzzleCompletion(elapsedTime) {
             const bestTime = localStorage.getItem(puzzleConfigKey);
             let isNewBest = false;
@@ -963,21 +868,25 @@
         function showCompletionModal() { ui.completionModal.classList.add('visible'); ui.hintBtn.disabled = true; ui.revealBtn.disabled = true; }
         function hideCompletionModal() { ui.completionModal.classList.remove('visible'); }
 
+        // --- EVENT LISTENERS & INITIALIZATION ---
+        
+        // Sets up the theme based on user preference or system setting.
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         function setTheme(theme) { document.body.classList.toggle('dark-mode', theme === 'dark'); localStorage.setItem('theme', theme); }
         themeToggleBtn.addEventListener('click', () => setTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark'));
         const savedTheme = localStorage.getItem('theme'), prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
 
+        // Mouse and Touch event listeners for grid interaction.
         ui.grid.addEventListener('mousedown', (e) => { if (e.button === 0) handleInteractionStart(e.target.closest('div[data-x]')); });
         ui.grid.addEventListener('mouseover', (e) => handleInteractionMove(e.target.closest('div[data-x]')));
         document.addEventListener('mouseup', (e) => { if (e.button === 0) handleInteractionEnd(); });
-
         ui.grid.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.touches[0]; handleInteractionStart(document.elementFromPoint(t.clientX, t.clientY)?.closest('div[data-x]')); }, { passive: false });
         ui.grid.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.touches[0]; handleInteractionMove(document.elementFromPoint(t.clientX, t.clientY)?.closest('div[data-x]')); }, { passive: false });
         ui.grid.addEventListener('touchend', handleInteractionEnd);
         ui.grid.addEventListener('touchcancel', handleInteractionEnd);
 
+        // Keyboard shortcuts for various actions.
         document.addEventListener('keydown', (event) => {
             const activeEl = document.activeElement;
             if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
@@ -988,21 +897,27 @@
             else if (key === 'r') { event.preventDefault(); revealWords(); }
         });
 
+        // Fullscreen and resize event listeners.
         ui.fullscreenBtn.addEventListener('click', toggleFullScreen);
         document.addEventListener('fullscreenchange', () => { if(currentGridState.length > 0) { clearTimeout(debounceTimeout); debounceTimeout = setTimeout(() => updateGridDisplay(), 100); } });
         
+        // Initial setup on page load.
         window.addEventListener('load', () => {
             const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
             if (isTouchDevice) ui.fullscreenBtn.style.display = 'none';
             generatePuzzle(false);
         });
         
+        // Handle window resizing to keep the grid looking good.
         window.addEventListener('resize', () => {
             if (currentGridState.length > 0 && !document.fullscreenElement) {
                 clearTimeout(debounceTimeout);
                 debounceTimeout = setTimeout(updateGridDisplay, 100);
             }
         });
+
+        // Helper function to get distance between two points (not used in core logic, but useful for other geometry).
+        function getDistance(x1, y1, x2, y2) { return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2)); }
     </script>
 </body>
 </html>
