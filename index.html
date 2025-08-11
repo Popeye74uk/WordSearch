@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.13</title>
+    <title>Word Search Generator v9.15</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -278,7 +278,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.13</div>
+        <div id="version-info">v9.15</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -1191,15 +1191,18 @@
         document.addEventListener('fullscreenchange', () => { if(currentGridState.length > 0) { clearTimeout(debounceTimeout); debounceTimeout = setTimeout(() => updateGridDisplay(), 100); } });
         
         window.addEventListener('load', () => {
-            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-            if (isTouchDevice) ui.fullscreenBtn.style.display = 'none';
+            // This more reliable check hides the button only on browsers that identify as mobile.
+            const isMobile = /Mobi/i.test(navigator.userAgent);
+            if (isMobile) {
+                ui.fullscreenBtn.style.display = 'none';
+            }
             generatePuzzle(false);
         });
         
         window.addEventListener('resize', () => {
             if (currentGridState.length > 0 && !document.fullscreenElement) {
                 clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(updateGridDisplay, 100);
+                setTimeout(updateGridDisplay, 100);
             }
         });
     </script>
