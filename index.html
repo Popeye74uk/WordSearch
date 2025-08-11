@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.8</title>
+    <title>Word Search Generator v9.10</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -115,7 +115,7 @@
         #advanced-options-panel, #generate-book-controls { display: none; }
         .options-panel-grid, .book-options-grid { display: grid; grid-template-columns: auto 1fr; justify-content: center; align-items: center; gap: 10px 15px; margin: 15px auto 0 auto; max-width: 415px; }
         .options-panel-grid label, .book-options-grid label { text-align: right; }
-        #book-checkbox-options { display: flex; gap: 20px; align-items: center; justify-content: flex-start; }
+        #book-checkbox-options { display: flex; gap: 15px; align-items: center; justify-content: flex-start; flex-wrap: wrap;}
         #book-checkbox-options label { user-select: none; cursor: pointer; }
         #status-container { text-align: center; margin-top: 15px; font-style: italic; min-height: 20px; color: var(--color-text-secondary); }
         #version-info { text-align: center; margin-top: 20px; font-size: 0.8em; color: var(--color-grid-lines); }
@@ -265,6 +265,12 @@
                     <label for="answer-key-checkbox"><input type="checkbox" id="answer-key-checkbox" checked> Answer Key</label>
                     <label for="page-numbers-checkbox"><input type="checkbox" id="page-numbers-checkbox" checked> Page Numbers</label>
                 </div>
+
+                <label for="custom-font-checkbox">Large Print:</label>
+                <input type="checkbox" id="custom-font-checkbox" style="justify-self: start;">
+
+                <label for="book-font-size-select">Font Size (pt):</label>
+                <select id="book-font-size-select" style="width: 70px;" disabled></select>
             </div>
             <div class="controls-grid">
                 <button id="create-book-btn" onclick="downloadBook()">Create Book</button>
@@ -272,7 +278,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.8</div>
+        <div id="version-info">v9.10</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -330,7 +336,9 @@
             completionModal: document.getElementById('completion-modal'),
             wordCounter: document.getElementById('word-counter'),
             fullscreenBtn: document.getElementById('fullscreen-btn'),
-            hintBtn: document.getElementById('hint-btn')
+            hintBtn: document.getElementById('hint-btn'),
+            customFontCheckbox: document.getElementById('custom-font-checkbox'),
+            bookFontSizeSelect: document.getElementById('book-font-size-select')
         };
         
         function getLevenshteinDistance(a, b) { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) { for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min( matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator ); } } return matrix[b.length][a.length]; }
@@ -662,8 +670,21 @@
                 currentY += (defLines.length * 3.5);
             }
             const gridTotalSize = 150, cellSize = gridTotalSize / currentGridSize, startX = (pageW - gridTotalSize) / 2, startY = currentY + 5;
-            const fontSize = currentGridSize === 25 ? 10 : 12;
-            doc.setFont('courier', 'bold').setFontSize(fontSize).setLineWidth(0.2);
+            
+            const defaultGridFontSize = currentGridSize === 25 ? 10 : 12;
+            let gridFontSize = defaultGridFontSize;
+            let wordListFontSize = 10;
+            let wordListLineHeight = 6;
+
+            if (puzzleData.customFontSize) {
+                gridFontSize = puzzleData.customFontSize;
+                // Scale word list font size proportionally, with a base of 10pt for the default 12pt grid font.
+                wordListFontSize = Math.round(Math.max(10, gridFontSize * (10 / 12)));
+                // Scale line height based on font size (approx 6mm for 10pt font)
+                wordListLineHeight = wordListFontSize * 0.6;
+            }
+
+            doc.setFont('courier', 'bold').setFontSize(gridFontSize).setLineWidth(0.2);
             doc.roundedRect(startX - 2, startY - 2, gridTotalSize + 4, gridTotalSize + 4, 3, 3, 'S');
             for (let y = 0; y < currentGridSize; y++) {
                 for (let x = 0; x < currentGridSize; x++) {
@@ -672,7 +693,7 @@
             }
             const listStartY = startY + gridTotalSize + 12;
             doc.setFont('helvetica', 'bold').setFontSize(12).text("Words to Find:", pageW/2, listStartY, {align:'center'});
-            doc.setFont('helvetica', 'normal').setFontSize(10);
+            doc.setFont('helvetica', 'normal').setFontSize(wordListFontSize);
             const wordsForList = placedDetails.map(p => p.word).sort();
             const numCols = currentWordCount > 15 ? 4 : (currentWordCount <= 10 ? 2 : 3);
             const wordsPerCol = Math.ceil(currentWordCount / numCols);
@@ -690,7 +711,7 @@
                 const row = index % wordsPerCol;
                 let xPos = listStartX;
                 for(let i=0; i<col; i++) { xPos += colWidths[i] + gap; }
-                const yPos = listStartY + 8 + (row * 6);
+                const yPos = listStartY + 8 + (row * wordListLineHeight);
                 doc.text(word, xPos, yPos);
             });
             if (includePageNumbers && pageNum) {
@@ -750,8 +771,38 @@
         // --- UI State Functions ---
         function showCustomOptions() { ui.mainControls.style.display = 'none'; ui.advancedOptionsPanel.style.display = 'block'; document.getElementById('global-options-container').style.display = 'flex';}
         function hideCustomOptions() { ui.mainControls.style.display = 'grid'; ui.advancedOptionsPanel.style.display = 'none'; document.getElementById('global-options-container').style.display = 'flex';}
-        function showBookOptions() { ui.mainControls.style.display = 'none'; ui.generateBookControls.style.display = 'block'; document.getElementById('global-options-container').style.display = 'none';}
-        function resetBookUI() { ui.mainControls.style.display = 'grid'; ui.generateBookControls.style.display = 'none'; document.getElementById('global-options-container').style.display = 'flex';}
+        
+        function updateBookFontSizeOptions() {
+            const currentGridSize = parseInt(ui.gridSizeSelect.value, 10);
+            const select = ui.bookFontSizeSelect;
+            select.innerHTML = '';
+
+            const cellSizeInMm = 150 / currentGridSize; // Total grid size in PDF is 150mm
+            const maxFontSize = Math.floor(cellSizeInMm * 2.2); // Heuristic: pt size is ~2.2x mm height
+            const minFontSize = currentGridSize === 25 ? 10 : 12;
+
+            for (let i = minFontSize; i <= maxFontSize; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                select.appendChild(option);
+            }
+            select.value = minFontSize;
+        }
+
+        function showBookOptions() { 
+            ui.mainControls.style.display = 'none'; 
+            ui.generateBookControls.style.display = 'block'; 
+            document.getElementById('global-options-container').style.display = 'none';
+            updateBookFontSizeOptions();
+        }
+        function resetBookUI() { 
+            ui.mainControls.style.display = 'grid'; 
+            ui.generateBookControls.style.display = 'none'; 
+            document.getElementById('global-options-container').style.display = 'flex';
+            ui.customFontCheckbox.checked = false;
+            ui.bookFontSizeSelect.disabled = true;
+        }
 
         async function downloadBook() {
             const puzzleCount = parseInt(document.getElementById('puzzle-count-input').value, 10);
@@ -760,6 +811,8 @@
             const includePageNumbers = document.getElementById('page-numbers-checkbox').checked;
             const bookTitle = document.getElementById('book-title-input').value.trim();
             const bookSubtitle = document.getElementById('book-subtitle-input').value.trim();
+            const useCustomFont = ui.customFontCheckbox.checked;
+            const customFontSize = parseInt(ui.bookFontSizeSelect.value, 10);
             
             isGeneratingBook = true;
             setUiLoading(true);
@@ -780,6 +833,9 @@
                     ui.loaderText.textContent = `Gathering data for puzzle ${i} of ${puzzleCount}...`;
                     updatePuzzleParameters();
                     const puzzleData = await generatePuzzleData(false);
+                    if (useCustomFont) {
+                        puzzleData.customFontSize = customFontSize;
+                    }
                     allPuzzlesData.push(puzzleData);
                 }
 
@@ -832,7 +888,12 @@
         function handleGlobalOptionChange() {
             clearTimeout(debounceTimeout);
             debounceTimeout = setTimeout(() => {
-                generatePuzzle();
+                // If the book options panel is open, update the font sizes, otherwise gen new puzzle
+                if (ui.generateBookControls.style.display === 'block') {
+                    updateBookFontSizeOptions();
+                } else {
+                    generatePuzzle();
+                }
             }, 250);
         }
 
@@ -980,6 +1041,10 @@
             else if (key === 'f') { event.preventDefault(); toggleFullScreen(); } 
             else if (key === 'n') { event.preventDefault(); generatePuzzle(); } 
             else if (key === 'r') { event.preventDefault(); revealWords(); }
+        });
+
+        ui.customFontCheckbox.addEventListener('change', (e) => {
+            ui.bookFontSizeSelect.disabled = !e.target.checked;
         });
 
         ui.fullscreenBtn.addEventListener('click', toggleFullScreen);
