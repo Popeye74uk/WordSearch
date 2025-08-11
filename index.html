@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Search Generator v9.12</title>
+    <title>Word Search Generator v9.13</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="blocklist.js"></script>
     <style>
@@ -278,7 +278,7 @@
             </div>
         </div>
         <div id="status-container"><p id="source-status"></p></div>
-        <div id="version-info">v9.12</div>
+        <div id="version-info">v9.13</div>
     </div>
 
     <div id="completion-modal" onclick="hideCompletionModal()">
@@ -376,7 +376,7 @@
                     if (!response.ok) throw new Error('API Failed');
                     let wordsData = await response.json();
                     wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
-                    let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
+                    let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-.]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                     if (filteredWords.length < wordCount) throw new Error(`Could not find enough safe, quality words for theme '${customTheme}'.`);
                     const finalList = [];
                     for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))); if (!isSimilar) finalList.push(wordData); }
@@ -400,7 +400,7 @@
                         if (!response.ok) continue;
                         let wordsData = await response.json();
                         wordsData = wordsData.filter(d => !PROFANITY_SET.has(d.word.toLowerCase()));
-                        let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
+                        let filteredWords = wordsData.filter(d => d.tags && (d.tags.includes('n') || d.tags.includes('adj') || d.tags.includes('v')) && !/[ '-.]/.test(d.word) && d.word.length > 3 && d.word.length <= gridSize);
                         if (filteredWords.length >= wordCount) {
                             const finalList = [];
                             for (const wordData of filteredWords.sort(() => 0.5 - Math.random())) { if (finalList.length >= wordCount) break; let isSimilar = finalList.some(finalWord => getLevenshteinDistance(wordData.word, finalWord.word) <= 2 || (wordData.word.length > 5 && finalWord.word.length > 5 && (wordData.word.startsWith(finalWord.word.substring(0,5)) || finalWord.word.startsWith(wordData.word.substring(0,5))))); if (!isSimilar) finalList.push(wordData); }
@@ -647,6 +647,15 @@
             ui.hintBtn.disabled = true;
         }
         
+        function downloadPdf() {
+            if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const definitionText = ui.themeDefinition.textContent.replace(/"/g, '');
+            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, null, false);
+            doc.save(`Word-Search-${currentTheme}.pdf`);
+        }
+
         function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
             const { theme, definition, grid, placedDetails } = puzzleData;
             const currentGridSize = grid.length;
@@ -710,15 +719,6 @@
                 doc.setFont('helvetica', 'normal').setFontSize(8).text(String(pageNum), pageW / 2, pageH - (margin / 2), { align: 'center' });
             }
         }
-        
-        function downloadPdf() {
-            if (placedWordDetails.length === 0) { alert("Please generate a puzzle first."); return; }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const definitionText = ui.themeDefinition.textContent.replace(/"/g, '');
-            drawPuzzleOnPdfPage(doc, { theme: currentTheme, definition: definitionText, grid: currentGridState, placedDetails: placedWordDetails }, null, false);
-            doc.save(`Word-Search-${currentTheme}.pdf`);
-        }
 
         function drawAnswerKey(doc, allPuzzlesData, includePageNumbers) {
             doc.addPage();
@@ -746,26 +746,12 @@
                 const gridTotalSize = 60, cellSize = gridTotalSize / currentGridSize;
                 const gridStartX = startX + (cellW - gridTotalSize) / 2, gridStartY = startY + 12;
                 doc.setFont('courier', 'normal').setFontSize(6).setTextColor(0);
-                for (let y = 0; y < currentGridSize; y++) {
-                    for (let x = 0; x < currentGridSize; x++) {
-                        doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    }
-                }
+                for (let y = 0; y < currentGridSize; y++) { for (let x = 0; x < currentGridSize; x++) { doc.text(puzzleData.grid[y][x], gridStartX + (x*cellSize) + (cellSize/2), gridStartY + (y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); } }
                 doc.setFillColor(255, 193, 7);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F');
-                    });
-                });
+                puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.rect(gridStartX + (loc.x * cellSize), gridStartY + (loc.y * cellSize), cellSize, cellSize, 'F'); }); });
                 doc.setFont('courier', 'bold').setFontSize(6).setTextColor(0);
-                puzzleData.placedDetails.forEach(detail => {
-                    detail.locations.forEach(loc => {
-                        doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'});
-                    });
-                });
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.2);
-                doc.roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
+                puzzleData.placedDetails.forEach(detail => { detail.locations.forEach(loc => { doc.text(puzzleData.grid[loc.y][loc.x], gridStartX + (loc.x*cellSize) + (cellSize/2), gridStartY + (loc.y*cellSize) + (cellSize/2), {align:'center', baseline:'middle'}); }); });
+                doc.setDrawColor(0).setLineWidth(0.2).roundedRect(gridStartX - 1, gridStartY - 1, gridTotalSize + 2, gridTotalSize + 2, 2, 2, 'S');
             });
         }
 
@@ -847,12 +833,10 @@
                    throw new Error("Failed to generate data for any puzzles.");
                 }
 
-                // Attach custom font size to each puzzle data object if selected
                 if (bookOptions.useCustomFont) {
                     allPuzzlesData.forEach(p => p.customFontSize = bookOptions.customFontSize);
                 }
                 
-                // Phase 2: Build the PDF in a background worker
                 await createPdfInWorker({ ...bookOptions, allPuzzlesData });
                 ui.status.textContent = "Book successfully generated!";
 
@@ -880,8 +864,6 @@
                 const workerScript = `
                     self.importScripts('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
                     
-                    // All drawing functions are now inside the worker
-                    // This is a simplified version of the main script's functions
                     function drawPuzzleOnPdfPage(doc, puzzleData, pageNum, includePageNumbers) {
                         const { theme, definition, grid, placedDetails } = puzzleData;
                         const currentGridSize = grid.length;
@@ -1066,7 +1048,6 @@
             }
         }
         
-        // --- INTERACTIVE GRID LOGIC ---
         function getCellsOnPath(startCell, endCell) {
             if (!startCell || !endCell) return [];
             
